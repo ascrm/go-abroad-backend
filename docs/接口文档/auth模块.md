@@ -297,6 +297,8 @@ curl -X POST http://localhost:8080/auth/social/register \
 
 ## 5. 第三方登录
 
+前端只需传递平台类型和授权码，后端自动换取 token 并获取用户信息
+
 ### 请求
 
 ```http
@@ -309,14 +311,7 @@ Content-Type: application/json
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | socialType | Integer | 是 | 平台类型：1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音 |
-| openid | String | 是 | 第三方平台 openid |
-| unionid | String | 否 | 微信/QQ unionid |
-| accessToken | String | 否 | 第三方平台 access_token |
-| refreshToken | String | 否 | 第三方平台 refresh_token |
-| expiresIn | Long | 否 | 令牌过期时间（秒） |
-| nickname | String | 否 | 用户昵称 |
-| avatar | String | 否 | 用户头像 |
-| gender | Integer | 否 | 性别：0-未知, 1-男, 2-女 |
+| code | String | 是 | 授权码（前端从第三方平台获取的一次性 code） |
 
 ### 响应
 
@@ -376,6 +371,42 @@ Refresh-Token: <refresh_token>
   }
 }
 ```
+
+---
+
+## 7. 退出登录
+
+### 请求
+
+```http
+POST /auth/logout
+Authorization: Bearer <access_token>
+```
+
+### 请求头
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| Authorization | 是 | 访问令牌 |
+
+### 响应
+
+```json
+{
+  "code": 20000,
+  "message": "success",
+  "data": null
+}
+```
+
+### 使用示例
+
+```bash
+curl -X POST http://localhost:8080/auth/logout \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+> **注意**：由于 JWT 是无状态的，退出登录后前端需要自行删除存储的 accessToken 和 refreshToken。
 
 ---
 
@@ -445,11 +476,8 @@ curl -X POST http://localhost:8080/auth/login \
 curl -X POST http://localhost:8080/auth/social/login \
   -H "Content-Type: application/json" \
   -d '{
-    "socialType": 1,
-    "openid": "oXXXX_XXXXX",
-    "unionid": "uXXXX_XXXXX",
-    "accessToken": "XXXXX",
-    "nickname": "微信用户"
+    "socialType": 3,
+    "code": "授权码"
   }'
 ```
 

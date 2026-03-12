@@ -36,13 +36,6 @@ public class SmsUtil {
     @Value("${app.sms.endpoint:dypnsapi.aliyuncs.com}")
     private String endpoint;
 
-    // 阿里云 AccessKey
-    @Value("${ALIBABA_CLOUD_ACCESS_KEY_ID:}")
-    private String accessKeyId;
-
-    @Value("${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}")
-    private String accessKeySecret;
-
     /**
      * 发送验证码短信
      *
@@ -55,6 +48,10 @@ public class SmsUtil {
             log.warn("短信发送已禁用，跳过发送到: {}", maskPhone(phone));
             return;
         }
+
+        // 从环境变量读取阿里云 AccessKey
+        String accessKeyId = System.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID");
+        String accessKeySecret = System.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET");
 
         if (accessKeyId == null || accessKeyId.isEmpty() || accessKeySecret == null || accessKeySecret.isEmpty()) {
             log.error("阿里云 AccessKey 未配置");
@@ -85,7 +82,7 @@ public class SmsUtil {
                     .signName(signature)
                     .templateCode(templateCode)
                     .templateParam(param)
-                    .phoneNumber("+86" + phone)
+                    .phoneNumber(phone)
                     .build();
 
                 // 发送短信

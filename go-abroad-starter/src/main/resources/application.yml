@@ -2,6 +2,8 @@ server:
   port: 8080
 
 spring:
+  profiles:
+    active: dev
   application:
     name: go-abroad-backend
 
@@ -9,8 +11,8 @@ spring:
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/go_abroad
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${spring.datasource.username}
+    password: ${spring.datasource.password}
     hikari:
       minimum-idle: 5
       maximum-pool-size: 20
@@ -33,9 +35,9 @@ spring:
   # Redis配置
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD}
+      host: ${spring.data.redis.host}
+      port: ${spring.data.redis.port}
+      password: ${spring.data.redis.password}
       database: 0  # 数据库编号
       timeout: 3000ms  # 连接超时时间
       lettuce:
@@ -48,7 +50,7 @@ spring:
 # Spring AI 配置 (DeepSeek)
 spring.ai:
   deepseek:
-    api-key: ${DEEPSEEK_API_KEY}
+    api-key: ${spring.ai.deepseek.api-key}
     chat:
       options:
         model: deepseek-chat
@@ -56,15 +58,14 @@ spring.ai:
 
 # JWT配置
 jwt:
-  secret: ${JWT_SECRET}
-  expiration: 86400000
+  secret: ${jwt.secret}
 
 # 邮件配置
 spring.mail:
   host: smtp.qq.com
   port: 587
-  username: ${MAIL_USERNAME}
-  password: ${MAIL_PASSWORD}
+  username: ${spring.mail.username}
+  password: ${spring.mail.password}
   properties:
     mail.smtp.auth: true
     mail.smtp.starttls.enable: true
@@ -74,13 +75,19 @@ spring.mail:
 app:
   # 邮件服务配置
   email:
-    enabled: ${EMAIL_ENABLED}
-    signature: ${EMAIL_SIGNATURE}
+    enabled: ${app.email.enabled}
+    signature: ${app.email.signature}
 
   # 短信服务配置（新版本SDK）
   sms:
-    enabled: ${SMS_ENABLED}
-    region: ${SMS_REGION}
+    enabled: ${app.sms.enabled}
+    region: ${app.sms.region}
     endpoint: dypnsapi.aliyuncs.com
-    signature: ${SMS_SIGNATURE}
-    template-code: ${SMS_TEMPLATE_CODE}
+    signature: ${app.sms.signature}
+    template-code: ${app.sms.template-code}
+
+  # 第三方登录配置
+  social:
+    google:
+      client-id: ${app.social.google.client-id}
+      redirect-uri: ${app.social.google.redirect-uri}

@@ -6,6 +6,7 @@ import lombok.Data;
 
 /**
  * 第三方登录请求
+ * 简化版：前端只需传递 socialType 和 code，后端自动换取 token 并获取用户信息
  */
 @Data
 public class SocialLoginRequest {
@@ -13,19 +14,7 @@ public class SocialLoginRequest {
     @NotNull(message = "平台类型不能为空")
     private Integer socialType;  // 平台类型: 1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音
 
-    @NotBlank(message = "openid不能为空")
-    private String openid;        // 第三方平台openid
-
-    private String unionid;       // 微信/QQ unionid
-
-    private String accessToken;   // 第三方平台access_token
-
-    private String refreshToken;  // 第三方平台refresh_token
-
-    private Long expiresIn;      // 令牌过期时间（秒）
-
-    // 用户信息（可选，首次登录时可能需要）
-    private String nickname;
-    private String avatar;
-    private Integer gender;
+    // 授权码（前端从第三方获取的一次性 code）
+    @NotBlank(message = "授权码不能为空")
+    private String code;
 }

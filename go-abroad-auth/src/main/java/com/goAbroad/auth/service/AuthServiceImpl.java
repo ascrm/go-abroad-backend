@@ -1,6 +1,5 @@
 package com.goAbroad.auth.service;
 
-import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.auth.dto.*;
 import com.goAbroad.auth.entity.User;
 import com.goAbroad.auth.entity.UserAccount;
@@ -8,16 +7,22 @@ import com.goAbroad.auth.entity.UserSocial;
 import com.goAbroad.auth.repository.UserAccountRepository;
 import com.goAbroad.auth.repository.UserRepository;
 import com.goAbroad.auth.repository.UserSocialRepository;
+import com.goAbroad.auth.strategy.SocialLoginStrategy;
 import com.goAbroad.auth.utils.CaptchaUtil;
+import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.common.exception.BusinessException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.Random;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,11 +39,42 @@ public class AuthServiceImpl {
     private final UserSocialRepository userSocialRepository;
     private final JwtUtils jwtUtils;
     private final CaptchaUtil captchaUtil;
+    private final List<SocialLoginStrategy> socialLoginStrategies;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    // 第三方登录策略映射（socialType -> Strategy），在 @PostConstruct 中初始化
+    private Map<Integer, SocialLoginStrategy> socialStrategyMap;
 
     // 正则表达式
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^1[3-9]\\d{9}$");
+
+    /**
+     * 初始化第三方登录策略映射
+     */
+    @PostConstruct
+    public void initSocialStrategyMap() {
+        socialStrategyMap = new HashMap<>();
+        for (SocialLoginStrategy strategy : socialLoginStrategies) {
+            socialStrategyMap.put(strategy.getSocialType(), strategy);
+        }
+        log.info("第三方登录策略初始化完成，支持的平台：{}", socialStrategyMap.keySet());
+    }
+
+    /**
+     * 获取第三方登录策略（支持延迟初始化）
+     */
+    private SocialLoginStrategy getSocialStrategy(Integer socialType) {
+        if (socialStrategyMap == null) {
+            // 延迟初始化（防御性编程）
+            initSocialStrategyMap();
+        }
+        SocialLoginStrategy strategy = socialStrategyMap.get(socialType);
+        if (strategy == null) {
+            throw new BusinessException("不支持的第三方平台类型: " + socialType);
+        }
+        return strategy;
+    }
 
     /**
      * 账号密码登录
@@ -258,10 +294,13 @@ public class AuthServiceImpl {
     @Transactional
     public LoginResponse socialLogin(SocialLoginRequest request) {
         Integer socialType = request.getSocialType();
-        String openid = request.getOpenid();
 
-        // 1. 查询是否已绑定
-        UserSocial userSocial = userSocialRepository.findBySocialTypeAndOpenid(socialType, openid)
+        // 1. 根据平台类型获取对应的策略来处理登录（换 token、获取用户信息等）
+        SocialLoginStrategy strategy = getSocialStrategy(socialType);
+        SocialLoginStrategy.SocialUserInfo userInfo = strategy.processLogin(request);
+
+        // 2. 用解析出的 openid 查询是否已绑定
+        UserSocial userSocial = userSocialRepository.findBySocialTypeAndOpenid(socialType, userInfo.getOpenid())
                 .orElse(null);
 
         User user;
@@ -273,29 +312,30 @@ public class AuthServiceImpl {
                 throw new BusinessException("账号已被禁用");
             }
 
-            // 更新第三方登录信息
-            updateSocialInfo(userSocial, request);
+            // 更新第三方登录信息（token 可能刷新了）
+            updateSocialInfo(userSocial, userInfo);
         } else {
-            // 未绑定，创建新用户或绑定到已有用户
-            user = createOrBindSocialUser(request);
+            // 未绑定，创建新用户并绑定
+            user = createOrBindSocialUser(socialType, userInfo);
         }
 
-        // 生成 Token
+        // 3. 生成 Token
         return buildLoginResponse(user);
     }
 
     /**
-     * 创建或绑定第三方用户
+     * 创建或绑定第三方用户（使用策略返回的用户信息）
      */
     @Transactional
-    public User createOrBindSocialUser(SocialLoginRequest request) {
-        // TODO: 如果需要绑定到已有用户，这里需要额外的逻辑
-        // 目前创建新用户
+    public User createOrBindSocialUser(Integer socialType, SocialLoginStrategy.SocialUserInfo userInfo) {
+        // 生成唯一用户名
+        String username = generateUniqueUsernameForSocial(socialType, userInfo.getOpenid());
+
         User user = User.builder()
-                .username("social_" + request.getOpenid().substring(0, 8))
-                .nickname(request.getNickname())
-                .avatar(request.getAvatar())
-                .gender(request.getGender() != null ? request.getGender() : 0)
+                .username(username)
+                .nickname(userInfo.getNickname())
+                .avatar(userInfo.getAvatar())
+                .gender(userInfo.getGender() != null ? userInfo.getGender() : 0)
                 .status(1)
                 .build();
         user = userRepository.save(user);
@@ -303,13 +343,13 @@ public class AuthServiceImpl {
         // 创建第三方登录记录
         UserSocial userSocial = UserSocial.builder()
                 .user(user)
-                .socialType(request.getSocialType())
-                .openid(request.getOpenid())
-                .unionid(request.getUnionid())
-                .accessToken(request.getAccessToken())
-                .refreshToken(request.getRefreshToken())
-                .expiresAt(request.getExpiresIn() != null ? 
-                        LocalDateTime.now().plusSeconds(request.getExpiresIn()) : null)
+                .socialType(socialType)
+                .openid(userInfo.getOpenid())
+                .unionid(userInfo.getUnionid())
+                .accessToken(userInfo.getAccessToken())
+                .refreshToken(userInfo.getRefreshToken())
+                .expiresAt(userInfo.getExpiresIn() != null ?
+                        LocalDateTime.now().plusSeconds(userInfo.getExpiresIn()) : null)
                 .build();
         userSocialRepository.save(userSocial);
 
@@ -319,17 +359,66 @@ public class AuthServiceImpl {
     /**
      * 更新第三方登录信息
      */
-    private void updateSocialInfo(UserSocial userSocial, SocialLoginRequest request) {
-        if (request.getAccessToken() != null) {
-            userSocial.setAccessToken(request.getAccessToken());
+    private void updateSocialInfo(UserSocial userSocial, SocialLoginStrategy.SocialUserInfo userInfo) {
+        if (userInfo.getAccessToken() != null) {
+            userSocial.setAccessToken(userInfo.getAccessToken());
         }
-        if (request.getRefreshToken() != null) {
-            userSocial.setRefreshToken(request.getRefreshToken());
+        if (userInfo.getRefreshToken() != null) {
+            userSocial.setRefreshToken(userInfo.getRefreshToken());
         }
-        if (request.getExpiresIn() != null) {
-            userSocial.setExpiresAt(LocalDateTime.now().plusSeconds(request.getExpiresIn()));
+        if (userInfo.getExpiresIn() != null) {
+            userSocial.setExpiresAt(LocalDateTime.now().plusSeconds(userInfo.getExpiresIn()));
         }
         userSocialRepository.save(userSocial);
+    }
+
+    /**
+     * 构建登录响应
+     * 说明：openid（尤其是 Google/Apple）常有相同前缀，不能用 substring(0,n) 作为唯一标识。
+     */
+    private String generateUniqueUsernameForSocial(Integer socialType, String openid) {
+        String base = "social_" + socialType + "_" + shortHash(openid);
+        String candidate = base;
+
+        // 极小概率碰撞：存在则追加随机后缀重试
+        for (int i = 0; i < 5; i++) {
+            if (!userRepository.existsByUsername(candidate)) {
+                return candidate;
+            }
+            candidate = base + "_" + randomSuffix(4);
+        }
+
+        // 兜底：继续加长后缀
+        return base + "_" + randomSuffix(10);
+    }
+
+    private String shortHash(String input) {
+        String safe = input == null ? "" : input;
+        byte[] digest = sha256(safe.getBytes(StandardCharsets.UTF_8));
+        // URL-safe base64，无 '+' '/'，再截断长度，适合 username
+        String b64 = Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        int len = Math.min(16, b64.length());
+        return b64.substring(0, len).toLowerCase();
+    }
+
+    private byte[] sha256(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return md.digest(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            // Java 标准库必有 SHA-256，这里理论不会发生
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private String randomSuffix(int length) {
+        final String chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     /**
@@ -424,5 +513,14 @@ public class AuthServiceImpl {
         }
 
         return buildLoginResponse(user);
+    }
+
+    /**
+     * 退出登录
+     * 由于 JWT 是无状态的，前端删除 token 后即表示退出成功
+     * 后端只需记录日志即可
+     */
+    public void logout(Long userId) {
+        log.info("用户退出登录: userId={}", userId);
     }
 }
