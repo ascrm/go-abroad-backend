@@ -6,7 +6,6 @@ import com.goAbroad.auth.dto.RegisterRequest;
 import com.goAbroad.auth.dto.SendCodeRequest;
 import com.goAbroad.auth.dto.SendCodeResponse;
 import com.goAbroad.auth.dto.SocialLoginRequest;
-import com.goAbroad.auth.dto.SocialRegisterRequest;
 import com.goAbroad.auth.service.AuthServiceImpl;
 import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.common.result.R;
@@ -59,17 +58,9 @@ public class AuthController {
     }
 
     /**
-     * 第三方注册（Google/Apple）
-     */
-    @PostMapping("/social/register")
-    public R<LoginResponse> socialRegister(@Valid @RequestBody SocialRegisterRequest request) {
-        LoginResponse response = authService.socialRegister(request);
-        return R.ok(response);
-    }
-
-    /**
      * 第三方登录
      * 支持微信、QQ、Google、Apple、抖音
+     * 第一次登录时自动创建账号
      */
     @PostMapping("/social/login")
     public R<LoginResponse> socialLogin(@Valid @RequestBody SocialLoginRequest request) {

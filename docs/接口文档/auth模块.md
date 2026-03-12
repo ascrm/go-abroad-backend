@@ -221,81 +221,9 @@ curl -X POST http://localhost:8080/auth/register \
 
 ---
 
-## 4. 第三方注册（Google/Apple）
+## 4. 第三方登录
 
-### 请求
-
-```http
-POST /auth/social/register
-Content-Type: application/json
-```
-
-### 请求参数
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| socialType | Integer | 是 | 平台类型：3-Google, 4-Apple |
-| openid | String | 是 | 第三方平台 openid |
-| unionid | String | 否 | Apple unionid |
-| accessToken | String | 否 | 第三方平台 access_token |
-| refreshToken | String | 否 | 第三方平台 refresh_token |
-| expiresIn | Long | 否 | 令牌过期时间（秒） |
-| nickname | String | 否 | 用户昵称 |
-| avatar | String | 否 | 用户头像 |
-| gender | Integer | 否 | 性别：0-未知, 1-男, 2-女 |
-
-### 响应
-
-```json
-{
-  "code": 20000,
-  "message": "success",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expiresIn": 86400000,
-    "user": {
-      "userId": 1,
-      "username": "google12345678",
-      "nickname": "张三",
-      "avatar": "https://example.com/avatar.jpg",
-      "gender": 1
-    }
-  }
-}
-```
-
-### 使用示例
-
-#### Google 注册
-
-```bash
-curl -X POST http://localhost:8080/auth/social/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "socialType": 3,
-    "openid": "google_openid_xxx",
-    "accessToken": "google_access_token",
-    "nickname": "张三"
-  }'
-```
-
-#### Apple 注册
-
-```bash
-curl -X POST http://localhost:8080/auth/social/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "socialType": 4,
-    "openid": "apple_openid_xxx",
-    "unionid": "apple_unionid_xxx",
-    "nickname": "李四"
-  }'
-```
-
----
-
-## 5. 第三方登录
+> 第一次登录时自动创建账号，无需单独注册
 
 前端只需传递平台类型和授权码，后端自动换取 token 并获取用户信息
 
@@ -336,7 +264,7 @@ Content-Type: application/json
 
 ---
 
-## 6. 刷新 Token
+## 5. 刷新 Token
 
 ### 请求
 
@@ -374,7 +302,7 @@ Refresh-Token: <refresh_token>
 
 ---
 
-## 7. 退出登录
+## 6. 退出登录
 
 ### 请求
 

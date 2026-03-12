@@ -176,13 +176,14 @@ public class AuthServiceImpl {
         }
 
         // 4. 生成随机用户名
-        String username = generateRandomUsername(accountType, account);
+        String username = "user_" + UUID.randomUUID().toString().substring(0, 8);
 
         // 5. 创建用户
+        String avatarSeed = UUID.randomUUID().toString().substring(0, 8);
         User user = User.builder()
                 .username(username)
-                .nickname(accountType == UserAccount.AccountType.EMAIL ?
-                        account.substring(0, account.indexOf("@")) : null)
+                .nickname(username)
+                .avatar("https://api.dicebear.com/7.x/avataaars/png?seed=" + avatarSeed)                .gender(0)
                 .status(1)
                 .build();
         user = userRepository.save(user);
@@ -199,93 +200,6 @@ public class AuthServiceImpl {
 
         // 7. 生成 Token
         return buildLoginResponse(user);
-    }
-
-    /**
-     * 生成随机用户名
-     */
-    private String generateRandomUsername(Integer accountType, String account) {
-        String prefix;
-        if (accountType == UserAccount.AccountType.EMAIL) {
-            prefix = "user";
-        } else if (accountType == UserAccount.AccountType.PHONE) {
-            prefix = "phone";
-        } else {
-            prefix = "user";
-        }
-
-        // 生成8位随机数字
-        Random random = new Random();
-        int randomNum = 10000000 + random.nextInt(90000000);
-
-        return prefix + randomNum;
-    }
-
-    /**
-     * 第三方注册（Google/Apple）
-     */
-    @Transactional
-    public LoginResponse socialRegister(SocialRegisterRequest request) {
-        Integer socialType = request.getSocialType();
-        String openid = request.getOpenid();
-
-        // 1. 检查是否已注册
-        if (userSocialRepository.findBySocialTypeAndOpenid(socialType, openid).isPresent()) {
-            throw new BusinessException("该第三方账号已被注册");
-        }
-
-        // 2. 验证支持的平台
-        if (socialType != UserSocial.SocialType.GOOGLE && socialType != UserSocial.SocialType.APPLE) {
-            throw new BusinessException("不支持的第三方平台");
-        }
-
-        // 3. 生成随机用户名
-        String username = generateRandomUsernameForSocial(socialType);
-
-        // 4. 创建用户
-        User user = User.builder()
-                .username(username)
-                .nickname(request.getNickname())
-                .avatar(request.getAvatar())
-                .gender(request.getGender() != null ? request.getGender() : 0)
-                .status(1)
-                .build();
-        user = userRepository.save(user);
-
-        // 5. 创建第三方登录记录
-        UserSocial userSocial = UserSocial.builder()
-                .user(user)
-                .socialType(socialType)
-                .openid(openid)
-                .unionid(request.getUnionid())
-                .accessToken(request.getAccessToken())
-                .refreshToken(request.getRefreshToken())
-                .expiresAt(request.getExpiresIn() != null ?
-                        LocalDateTime.now().plusSeconds(request.getExpiresIn()) : null)
-                .build();
-        userSocialRepository.save(userSocial);
-
-        // 6. 生成 Token
-        return buildLoginResponse(user);
-    }
-
-    /**
-     * 为第三方用户生成随机用户名
-     */
-    private String generateRandomUsernameForSocial(Integer socialType) {
-        String prefix;
-        if (socialType == UserSocial.SocialType.GOOGLE) {
-            prefix = "google";
-        } else if (socialType == UserSocial.SocialType.APPLE) {
-            prefix = "apple";
-        } else {
-            prefix = "social";
-        }
-
-        Random random = new Random();
-        int randomNum = 10000000 + random.nextInt(90000000);
-
-        return prefix + randomNum;
     }
 
     /**
@@ -501,10 +415,7 @@ public class AuthServiceImpl {
         if (!jwtUtils.validateToken(refreshToken) || !jwtUtils.isRefreshToken(refreshToken)) {
             throw new BusinessException("无效的刷新令牌");
         }
-
         Long userId = jwtUtils.getUserId(refreshToken);
-        String username = jwtUtils.getUsername(refreshToken);
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("用户不存在"));
 
