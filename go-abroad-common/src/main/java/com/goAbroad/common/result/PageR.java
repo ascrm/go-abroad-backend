@@ -16,19 +16,19 @@ public class PageR<T> {
     private Integer code;           // 状态码
     private String message;         // 提示信息
     private Long total;             // 总记录数
-    private Integer pageNum;        // 当前页码
-    private Integer pageSize;       // 每页大小
-    private List<T> rows;           // 数据列表
+    private Integer page;            // 当前页码
+    private Integer pageSize;         // 每页大小
+    private List<T> list;          // 数据列表
 
     /**
      * 成功返回分页数据
      */
-    public static <T> PageR<T> ok(Long total, List<T> rows) {
-        return new PageR<>(200, "success", total, 1, rows.size(), rows);
+    public static <T> PageR<T> ok(Long total, List<T> list) {
+        return new PageR<>(200, "success", total, 1, list.size(), list);
     }
 
-    public static <T> PageR<T> ok(Long total, List<T> rows, Integer pageNum, Integer pageSize) {
-        return new PageR<>(200, "success", total, pageNum, pageSize, rows);
+    public static <T> PageR<T> ok(Long total, List<T> list, Integer page, Integer pageSize) {
+        return new PageR<>(200, "success", total, page, pageSize, list);
     }
 
     /**
