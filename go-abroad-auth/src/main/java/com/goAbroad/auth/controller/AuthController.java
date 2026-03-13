@@ -9,6 +9,7 @@ import com.goAbroad.auth.dto.SocialLoginRequest;
 import com.goAbroad.auth.service.AuthServiceImpl;
 import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.common.result.R;
+import com.goAbroad.common.utils.UserHolder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
  * 认证 Controller
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
 public class AuthController {
@@ -82,17 +83,22 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public R<Void> logout(HttpServletRequest request) {
-        // 获取当前登录用户的 ID
-        Long userId = getCurrentUserId(request);
-        authService.logout(userId);
+        // 优先从 UserHolder 获取，否则从 token 解析
+        Long userId = UserHolder.getUserId();
+        if (userId == null) {
+            userId = getUserIdFromToken(request);
+        }
+        if (userId != null) {
+            authService.logout(userId);
+            UserHolder.clear();
+        }
         return R.ok();
     }
 
     /**
-     * 获取当前登录用户 ID
+     * 从 Token 中获取用户ID
      */
-    private Long getCurrentUserId(HttpServletRequest request) {
-        // 从 JWT Token 中获取用户ID
+    private Long getUserIdFromToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             String token = bearerToken.substring(7);

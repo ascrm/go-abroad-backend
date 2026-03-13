@@ -66,7 +66,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 允许访问的接口
                 .requestMatchers(
-                    "/auth/**",
+                    "/api/auth/register",
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/sendCode",
+                    "/api/auth/social/",
                     "/error"
                 ).permitAll()
                 // 其他接口需要认证

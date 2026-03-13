@@ -1,6 +1,7 @@
 package com.goAbroad.auth.config;
 
 import com.goAbroad.auth.utils.JwtUtils;
+import com.goAbroad.common.utils.UserHolder;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsServiceImpl userDetailsService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
@@ -41,12 +42,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 只处理 Access Token
                 if ("access".equals(tokenType) && userId != null) {
+                    // 将用户ID存入 UserHolder
+                    UserHolder.setUserId(userId);
+
                     UserDetails userDetails = userDetailsService.loadUserById(userId);
 
-                    UsernamePasswordAuthenticationToken authentication = 
+                    UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
-                                    userDetails, 
-                                    null, 
+                                    userDetails,
+                                    null,
                                     userDetails.getAuthorities()
                             );
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -59,6 +63,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+
+        // 请求完成后清理 UserHolder
+        UserHolder.clear();
     }
 
     /**

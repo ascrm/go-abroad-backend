@@ -59,15 +59,144 @@ CREATE INDEX IF NOT EXISTS idx_user_social_user_id ON tb_user_social(user_id);
 COMMENT ON TABLE tb_user_social IS '第三方登录表';
 COMMENT ON COLUMN tb_user_social.social_type IS '平台类型: 1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音';
 
--- ============================================
--- 初始化测试数据（可选）
--- ============================================
 
--- 插入测试用户
-INSERT INTO "tb_user" (username, nickname, gender, status)
-VALUES ('admin', '管理员', 1, 1)
-ON CONFLICT (username) DO NOTHING;
 
--- 获取测试用户ID并插入账号
--- INSERT INTO tb_user_account (user_id, account_type, account_value, password, salt, verified)
--- SELECT id, 1, 'admin', '$2a$10$xxxx', 'salt', true FROM "tb_user" WHERE username = 'admin';
+--------------------- community部分的所有表 ----------------------------------
+
+
+-- ============================================
+-- 推荐文章表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_articles (
+                                        id BIGSERIAL PRIMARY KEY,
+                                        title VARCHAR(200) NOT NULL,
+                                        description TEXT,
+                                        content TEXT NOT NULL,
+                                        image VARCHAR(500),
+                                        tag VARCHAR(50),
+                                        author_id BIGINT REFERENCES tb_user(id),
+                                        views INT DEFAULT 0,
+                                        favorites INT DEFAULT 0,
+                                        is_published BOOLEAN DEFAULT true,
+                                        is_featured BOOLEAN DEFAULT false,
+                                        published_at TIMESTAMP WITH TIME ZONE,
+                                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_articles_published ON tb_articles(is_published, published_at);
+CREATE INDEX idx_articles_featured ON tb_articles(is_featured);
+
+-- ============================================
+-- 问答问题表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_questions (
+                                         id BIGSERIAL PRIMARY KEY,
+                                         title VARCHAR(200) NOT NULL,
+                                         content TEXT NOT NULL,
+                                         author_id BIGINT REFERENCES tb_user(id),
+                                         category VARCHAR(50),
+                                         views INT DEFAULT 0,
+                                         replies_count INT DEFAULT 0,
+                                         is_resolved BOOLEAN DEFAULT false,
+                                         is_deleted BOOLEAN DEFAULT false,
+                                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_questions_author ON tb_questions(author_id);
+CREATE INDEX idx_questions_category ON tb_questions(category);
+CREATE INDEX idx_questions_resolved ON tb_questions(is_resolved);
+
+-- ============================================
+-- 问答回答表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_answers (
+                                       id BIGSERIAL PRIMARY KEY,
+                                       question_id BIGINT NOT NULL REFERENCES tb_questions(id) ON DELETE CASCADE,
+                                       author_id BIGINT REFERENCES tb_user(id),
+                                       content TEXT NOT NULL,
+                                       likes INT DEFAULT 0,
+                                       replies_count INT DEFAULT 0,
+                                       is_official BOOLEAN DEFAULT false,
+                                       is_best_answer BOOLEAN DEFAULT false,
+                                       is_deleted BOOLEAN DEFAULT false,
+                                       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_answers_question ON tb_answers(question_id);
+CREATE INDEX idx_answers_author ON tb_answers(author_id);
+CREATE INDEX idx_answers_official ON tb_answers(is_official);
+
+-- ============================================
+-- 互动表（合并收藏、点赞、关注）
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_interactions (
+                                            id BIGSERIAL PRIMARY KEY,
+                                            user_id BIGINT NOT NULL REFERENCES tb_user(id) ON DELETE CASCADE,
+                                            target_id BIGINT NOT NULL,
+                                            target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('article', 'question', 'answer')),
+                                            action VARCHAR(20) NOT NULL CHECK (action IN ('favorite', 'like', 'follow', 'view')),
+                                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                            UNIQUE(user_id, target_id, action)
+);
+
+CREATE INDEX idx_interactions_user ON tb_interactions(user_id, action);
+CREATE INDEX idx_interactions_target ON tb_interactions(target_id, target_type);
+
+
+
+-- ================== plan模块内容 =============================
+
+-- ============================================
+-- 用户规划表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_plans (
+                                        id BIGSERIAL PRIMARY KEY,
+                                        user_id BIGINT NOT NULL REFERENCES tb_user(id) ON DELETE CASCADE,
+                                        title VARCHAR(200) NOT NULL,
+                                        type VARCHAR(20) NOT NULL CHECK (type IN ('tourism', 'study', 'work', 'immigration')),
+                                        destination JSONB,
+                                        status VARCHAR(20) DEFAULT 'generating' CHECK (status IN ('draft', 'generating', 'completed', 'archived')),
+                                        form_data JSONB,
+                                        cover_image VARCHAR(500),
+                                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tb_plans_user ON tb_plans(user_id);
+CREATE INDEX idx_tb_plans_type ON tb_plans(type);
+CREATE INDEX idx_tb_plans_status ON tb_plans(status);
+
+-- ============================================
+-- 规划阶段表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_plan_phases (
+                                              id BIGSERIAL PRIMARY KEY,
+                                              plan_id BIGINT NOT NULL REFERENCES tb_plans(id) ON DELETE CASCADE,
+                                              title VARCHAR(100) NOT NULL,
+                                              description TEXT,
+                                              sort_order INT DEFAULT 0,
+                                              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tb_plan_phases_plan ON tb_plan_phases(plan_id);
+
+-- ============================================
+-- 规划任务表
+-- ============================================
+CREATE TABLE IF NOT EXISTS tb_plan_tasks (
+                                             id BIGSERIAL PRIMARY KEY,
+                                             phase_id BIGINT NOT NULL REFERENCES tb_plan_phases(id) ON DELETE CASCADE,
+                                             title VARCHAR(200) NOT NULL,
+                                             description TEXT,
+                                             ai_suggestion TEXT,
+                                             quick_links JSONB,
+                                             is_completed BOOLEAN DEFAULT false,
+                                             completed_at TIMESTAMP WITH TIME ZONE,
+                                             sort_order INT DEFAULT 0,
+                                             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tb_plan_tasks_phase ON tb_plan_tasks(phase_id);
