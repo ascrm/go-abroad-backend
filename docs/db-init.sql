@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS tb_interactions (
                                             target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('article', 'question', 'answer')),
                                             action VARCHAR(20) NOT NULL CHECK (action IN ('favorite', 'like', 'follow', 'view')),
                                             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                            UNIQUE(user_id, target_id, action)
+                                            UNIQUE(user_id, target_id, target_type, action)
 );
 
 CREATE INDEX idx_interactions_user ON tb_interactions(user_id, action);

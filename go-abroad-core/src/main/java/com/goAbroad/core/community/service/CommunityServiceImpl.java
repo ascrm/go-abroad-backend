@@ -346,13 +346,17 @@ public class CommunityServiceImpl {
                 break;
         }
 
-        Interaction interaction = Interaction.builder()
-                .userId(userId)
-                .targetId(targetId)
-                .targetType(Interaction.TargetType.valueOf(targetType))
-                .action(Interaction.Action.view)
-                .build();
-        interactionRepository.save(interaction);
+        Interaction.TargetType type = Interaction.TargetType.valueOf(targetType);
+        Optional<Interaction> existing = interactionRepository.findOne(userId, targetId, type, Interaction.Action.view);
+        if (existing.isEmpty()) {
+            Interaction interaction = Interaction.builder()
+                    .userId(userId)
+                    .targetId(targetId)
+                    .targetType(type)
+                    .action(Interaction.Action.view)
+                    .build();
+            interactionRepository.save(interaction);
+        }
     }
 
     public InteractionCheckResponse checkInteractionStatus(Long userId, Long targetId, String targetType) {

@@ -8,7 +8,9 @@ import java.time.LocalDateTime;
  * 互动表（收藏、点赞、关注）
  */
 @Entity
-@Table(name = "tb_interactions")
+@Table(name = "tb_interactions", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_user_target_type_action", columnNames = {"user_id", "target_id", "target_type", "action"})
+})
 @Getter
 @Setter
 @NoArgsConstructor
