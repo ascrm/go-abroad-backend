@@ -104,82 +104,22 @@ public class PlanServiceImpl {
         planRepository.delete(plan);
     }
 
-    @Transactional
-    public PlanResponse generatePlan(Long userId, GeneratePlanRequest request) {
+    /**
+     * 流式生成规划 - 返回AI流式响应
+     */
+    public Flux<String> generatePlanStream(Long userId, GeneratePlanRequest request) {
         // 构建AI提示词
         String prompt = buildPrompt(request);
 
         // 根据类型获取对应的AI专家
         String systemPrompt = getSystemPromptByType(request.getType());
 
-        // 调用AI生成规划
-        String aiResponse = chatClient.prompt()
+        // 流式调用AI，返回Flux<String>
+        return chatClient.prompt()
                 .system(systemPrompt)
                 .user(prompt)
-                .call()
+                .stream()
                 .content();
-
-        // 解析AI响应
-        Map<String, Object> planData = parseAiResponse(aiResponse, request);
-
-        // 保存规划到数据库
-        Plan plan = Plan.builder()
-                .userId(userId)
-                .title((String) planData.getOrDefault("title", "新规划"))
-                .type(Plan.PlanType.valueOf(request.getType()))
-                .destination(request.getDestination())
-                .formData(request.getFormData())
-                .status("completed")
-                .build();
-        plan = planRepository.save(plan);
-
-        // 保存阶段和任务
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> phasesData = (List<Map<String, Object>>) planData.getOrDefault("phases", new ArrayList<>());
-
-        // 创建一个映射：phase title -> phase index
-        Map<String, Integer> phaseIndexMap = new HashMap<>();
-
-        // 先保存所有阶段
-        List<PlanPhase> phases = new ArrayList<>();
-        int phaseOrder = 0;
-        for (Map<String, Object> phaseData : phasesData) {
-            PlanPhase phase = PlanPhase.builder()
-                    .planId(plan.getId())
-                    .title((String) phaseData.getOrDefault("title", ""))
-                    .description((String) phaseData.getOrDefault("description", ""))
-                    .sortOrder(phaseOrder)
-                    .build();
-            phaseIndexMap.put((String) phaseData.getOrDefault("title", ""), phaseOrder);
-            phases.add(phase);
-            phaseOrder++;
-        }
-        phases = phaseRepository.saveAll(phases);
-
-        // 再保存所有任务
-        List<PlanTask> tasks = new ArrayList<>();
-        for (int i = 0; i < phases.size(); i++) {
-            PlanPhase phase = phases.get(i);
-            Map<String, Object> phaseData = phasesData.get(i);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> tasksData = (List<Map<String, Object>>) phaseData.getOrDefault("tasks", new ArrayList<>());
-
-            int taskOrder = 0;
-            for (Map<String, Object> taskData : tasksData) {
-                PlanTask task = PlanTask.builder()
-                        .phaseId(phase.getId())
-                        .title((String) taskData.getOrDefault("title", ""))
-                        .description((String) taskData.getOrDefault("description", ""))
-                        .aiSuggestion((String) taskData.getOrDefault("aiSuggestion", ""))
-                        .sortOrder(taskOrder++)
-                        .isCompleted(false)
-                        .build();
-                tasks.add(task);
-            }
-        }
-        taskRepository.saveAll(tasks);
-
-        return planMapper.toResponse(plan);
     }
 
     private String buildPrompt(GeneratePlanRequest request) {
@@ -220,50 +160,9 @@ public class PlanServiceImpl {
         };
     }
 
-    private Map<String, Object> parseAiResponse(String aiResponse, GeneratePlanRequest request) {
-        Map<String, Object> planData = new HashMap<>();
-
-        // 尝试解析JSON
-        try {
-            // 尝试提取JSON部分（如果AI返回有markdown格式）
-            String jsonStr = aiResponse.trim();
-            if (jsonStr.startsWith("```json")) {
-                jsonStr = jsonStr.substring(7);
-            }
-            if (jsonStr.startsWith("```")) {
-                jsonStr = jsonStr.substring(3);
-            }
-            if (jsonStr.endsWith("```")) {
-                jsonStr = jsonStr.substring(0, jsonStr.length() - 3);
-            }
-            jsonStr = jsonStr.trim();
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> parsed = new com.fasterxml.jackson.databind.ObjectMapper().readValue(jsonStr, Map.class);
-
-            planData.put("title", parsed.getOrDefault("title", "新规划"));
-            planData.put("type", request.getType());
-            planData.put("destination", request.getDestination());
-            planData.put("status", "generating");
-            planData.put("formData", request.getFormData());
-            planData.put("phases", parsed.getOrDefault("phases", new ArrayList<>()));
-
-        } catch (Exception e) {
-            log.error("解析AI响应失败，使用默认规划", e);
-            // 解析失败时返回默认规划
-            planData.put("title", request.getFormData().getOrDefault("title", "新规划"));
-            planData.put("type", request.getType());
-            planData.put("destination", request.getDestination());
-            planData.put("status", "generating");
-            planData.put("formData", request.getFormData());
-            planData.put("phases", new ArrayList<>());
-        }
-
-        return planData;
-    }
-
     @Transactional
     public PlanResponse saveGeneratedPlan(Long userId, SaveGeneratedRequest request) {
+        // 保存规划
         Plan plan = Plan.builder()
                 .userId(userId)
                 .title(request.getTitle())
@@ -272,9 +171,10 @@ public class PlanServiceImpl {
                 .formData(request.getFormData())
                 .status("completed")
                 .build();
-
         plan = planRepository.save(plan);
 
+        // 批量保存阶段
+        List<PlanPhase> phases = new ArrayList<>();
         if (request.getPhases() != null) {
             int phaseOrder = 0;
             for (SaveGeneratedRequest.PhaseDto phaseDto : request.getPhases()) {
@@ -284,44 +184,34 @@ public class PlanServiceImpl {
                         .description(phaseDto.getDescription())
                         .sortOrder(phaseOrder++)
                         .build();
-                phase = phaseRepository.save(phase);
+                phases.add(phase);
+            }
+            phases = phaseRepository.saveAll(phases);
+        }
 
-                if (phaseDto.getTasks() != null) {
-                    int taskOrder = 0;
-                    for (SaveGeneratedRequest.TaskDto taskDto : phaseDto.getTasks()) {
-                        PlanTask task = PlanTask.builder()
-                                .phaseId(phase.getId())
-                                .title(taskDto.getTitle())
-                                .description(taskDto.getDescription())
-                                .aiSuggestion(taskDto.getAiSuggestion())
-                                .sortOrder(taskOrder++)
-                                .isCompleted(false)
-                                .build();
-                        taskRepository.save(task);
-                    }
+        // 批量保存任务
+        List<PlanTask> tasks = new ArrayList<>();
+        for (int i = 0; i < phases.size(); i++) {
+            PlanPhase phase = phases.get(i);
+            SaveGeneratedRequest.PhaseDto phaseDto = request.getPhases().get(i);
+            if (phaseDto.getTasks() != null) {
+                int taskOrder = 0;
+                for (SaveGeneratedRequest.TaskDto taskDto : phaseDto.getTasks()) {
+                    PlanTask task = PlanTask.builder()
+                            .phaseId(phase.getId())
+                            .title(taskDto.getTitle())
+                            .description(taskDto.getDescription())
+                            .aiSuggestion(taskDto.getAiSuggestion())
+                            .sortOrder(taskOrder++)
+                            .isCompleted(false)
+                            .build();
+                    tasks.add(task);
                 }
             }
         }
+        taskRepository.saveAll(tasks);
 
         return planMapper.toResponse(plan);
-    }
-
-    /**
-     * 流式生成规划 - 返回AI流式响应
-     */
-    public Flux<String> generatePlanStream(Long userId, GeneratePlanRequest request) {
-        // 构建AI提示词
-        String prompt = buildPrompt(request);
-
-        // 根据类型获取对应的AI专家
-        String systemPrompt = getSystemPromptByType(request.getType());
-
-        // 流式调用AI，返回Flux<String>
-        return chatClient.prompt()
-                .system(systemPrompt)
-                .user(prompt)
-                .stream()
-                .content();
     }
 
     @Transactional

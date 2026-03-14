@@ -10,8 +10,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/plan")
 @RequiredArgsConstructor
@@ -68,14 +66,6 @@ public class PlanController {
     public Flux<String> generatePlanStream(@RequestBody GeneratePlanRequest request) {
         Long userId = UserHolder.getUserId();
         return planService.generatePlanStream(userId, request);
-    }
-
-    /**** AI生成规划 ****/
-    @PostMapping("/generate")
-    public R<PlanResponse> generatePlan(@RequestBody GeneratePlanRequest request) {
-        Long userId = UserHolder.getUserId();
-        PlanResponse result = planService.generatePlan(userId, request);
-        return R.ok(result);
     }
 
     /**** 保存AI生成的规划 ****/
