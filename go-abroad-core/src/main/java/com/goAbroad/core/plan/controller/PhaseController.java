@@ -19,6 +19,7 @@ public class PhaseController {
 
     private final PhaseServiceImpl phaseService;
 
+    /**** 获取规划下的所有阶段 ****/
     @GetMapping("/{planId}/phases")
     public R<List<PhaseResponse>> getPhasesByPlanId(@PathVariable Long planId) {
         Long userId = UserHolder.getUserId();
@@ -26,6 +27,7 @@ public class PhaseController {
         return R.ok(result);
     }
 
+    /**** 创建阶段 ****/
     @PostMapping()
     public R<PhaseResponse> createPhase(@RequestBody PhaseCreateRequest request) {
         Long userId = UserHolder.getUserId();
@@ -33,6 +35,7 @@ public class PhaseController {
         return R.ok(result);
     }
 
+    /**** 更新阶段 ****/
     @PutMapping("/{id}")
     public R<PhaseResponse> updatePhase(@PathVariable Long id, @RequestBody PhaseUpdateRequest request) {
         Long userId = UserHolder.getUserId();
@@ -40,6 +43,7 @@ public class PhaseController {
         return R.ok(result);
     }
 
+    /**** 删除阶段 ****/
     @DeleteMapping("/{id}")
     public R<Void> deletePhase(@PathVariable Long id) {
         Long userId = UserHolder.getUserId();
@@ -47,6 +51,7 @@ public class PhaseController {
         return R.ok();
     }
 
+    /**** 重新排序阶段内的任务 ****/
     @PutMapping("/{planId}/phases/reorder")
     public R<Void> reorderPhases(@PathVariable Long planId, @RequestBody ReorderRequest request) {
         Long userId = UserHolder.getUserId();

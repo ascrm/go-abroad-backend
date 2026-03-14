@@ -19,6 +19,7 @@ public class TaskController {
     private final TaskServiceImpl taskService;
     private final PhaseServiceImpl phaseService;
 
+    /**** 获取阶段下的所有任务 ****/
     @GetMapping("/{phaseId}/tasks")
     public R<List<TaskResponse>> getTasksByPhaseId(@PathVariable Long phaseId) {
         Long userId = UserHolder.getUserId();
@@ -26,6 +27,7 @@ public class TaskController {
         return R.ok(result);
     }
 
+    /**** 获取任务详情 ****/
     @GetMapping("/{id}")
     public R<TaskResponse> getTaskById(@PathVariable Long id) {
         Long userId = UserHolder.getUserId();
@@ -33,6 +35,7 @@ public class TaskController {
         return R.ok(result);
     }
 
+    /**** 创建任务 ****/
     @PostMapping()
     public R<TaskResponse> createTask(@RequestBody TaskCreateRequest request) {
         Long userId = UserHolder.getUserId();
@@ -40,6 +43,7 @@ public class TaskController {
         return R.ok(result);
     }
 
+    /**** 更新任务 ****/
     @PutMapping("/{id}")
     public R<TaskResponse> updateTask(@PathVariable Long id, @RequestBody TaskUpdateRequest request) {
         Long userId = UserHolder.getUserId();
@@ -47,6 +51,7 @@ public class TaskController {
         return R.ok(result);
     }
 
+    /**** 删除任务 ****/
     @DeleteMapping("/{id}")
     public R<Void> deleteTask(@PathVariable Long id) {
         Long userId = UserHolder.getUserId();
@@ -54,6 +59,7 @@ public class TaskController {
         return R.ok();
     }
 
+    /**** 完成任务 ****/
     @PutMapping("/{id}/complete")
     public R<TaskResponse> completeTask(@PathVariable Long id, @RequestBody TaskCompleteRequest request) {
         Long userId = UserHolder.getUserId();
@@ -61,6 +67,7 @@ public class TaskController {
         return R.ok(result);
     }
 
+    /**** 重新排序任务 ****/
     @PutMapping("/{phaseId}/tasks/reorder")
     public R<Void> reorderTasks(@PathVariable Long phaseId, @RequestBody ReorderRequest request) {
         Long userId = UserHolder.getUserId();
@@ -70,6 +77,7 @@ public class TaskController {
         return R.ok();
     }
 
+    /**** 获取AI建议 ****/
     @GetMapping("/{taskId}/ai-suggestion")
     public R<Map<String, String>> getAiSuggestion(@PathVariable Long taskId) {
         Long userId = UserHolder.getUserId();
