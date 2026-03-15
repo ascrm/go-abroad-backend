@@ -131,9 +131,18 @@ public class PlanServiceImpl {
 
         // 注册回调
         emitter.onCompletion(cleanup);
-        emitter.onTimeout(cleanup);
+        emitter.onTimeout(() -> {
+            log.warn("SSE 超时，通知前端重连");
+            try {
+                emitter.send(SseEmitter.event().name("reconnect").data("timeout"));
+            } catch (Exception ignored) {}
+            cleanup.run();
+        });
         emitter.onError(e -> {
             log.warn("SSE 错误: {}", e.getMessage());
+            try {
+                emitter.send(SseEmitter.event().name("reconnect").data("error"));
+            } catch (Exception ignored) {}
             cleanup.run();
         });
 
@@ -181,12 +190,12 @@ public class PlanServiceImpl {
 
     private String buildPrompt(GeneratePlanRequest request) {
         StringBuilder sb = new StringBuilder();
-        sb.append("请根据以下信息生成一个简洁的留学/出境规划。\n");
-        sb.append("请以JSON格式返回，包含以下字段：\n");
-        sb.append("1. title: 规划标题\n");
-        sb.append("2. phases: 阶段数组，每个阶段包含title、description、tasks\n");
-        sb.append("3. 每个任务包含title、description\n");
-        sb.append("4. 只生成3-4个阶段，每个阶段3-4个任务\n");
+        sb.append("请根据以下信息生成一个留学/出境规划。\n");
+        sb.append("用自然语言输出，分点描述，包含以下内容：\n");
+        sb.append("1. 规划标题\n");
+        sb.append("2. 各个阶段名称和说明\n");
+        sb.append("3. 每个阶段下的具体任务\n");
+        sb.append("4. 共3-4个阶段，每个阶段3-4个任务\n");
         sb.append("5. 用简洁的中文\n\n");
 
         sb.append("用户信息：\n");
@@ -199,8 +208,7 @@ public class PlanServiceImpl {
             }
         }
 
-        sb.append("\n只返回JSON。");
-
+        sb.append("\n直接输出规划内容。");
         return sb.toString();
     }
 
