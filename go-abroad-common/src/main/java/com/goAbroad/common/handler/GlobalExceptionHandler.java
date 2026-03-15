@@ -2,6 +2,7 @@ package com.goAbroad.common.handler;
 
 import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.common.result.R;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -23,7 +24,11 @@ public class GlobalExceptionHandler {
      * 处理业务异常
      */
     @ExceptionHandler(BusinessException.class)
-    public R<Void> handleBusinessException(BusinessException e) {
+    public R<Void> handleBusinessException(BusinessException e, HttpServletRequest request) {
+        // SSE请求不处理异常，让容器自己处理
+        if (isSseRequest(request)) {
+            return null;
+        }
         log.error("业务异常: {}", e.getMessage());
         return R.fail(e.getCode(), e.getMessage());
     }
@@ -32,7 +37,11 @@ public class GlobalExceptionHandler {
      * 处理参数校验异常
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public R<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+    public R<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException e, HttpServletRequest request) {
+        // SSE请求不处理异常
+        if (isSseRequest(request)) {
+            return null;
+        }
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
@@ -44,7 +53,11 @@ public class GlobalExceptionHandler {
      * 处理绑定异常
      */
     @ExceptionHandler(BindException.class)
-    public R<Void> handleBindException(BindException e) {
+    public R<Void> handleBindException(BindException e, HttpServletRequest request) {
+        // SSE请求不处理异常
+        if (isSseRequest(request)) {
+            return null;
+        }
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
@@ -56,8 +69,25 @@ public class GlobalExceptionHandler {
      * 处理其他异常
      */
     @ExceptionHandler(Exception.class)
-    public R<Void> handleException(Exception e) {
+    public R<Void> handleException(Exception e, HttpServletRequest request) {
+        // SSE请求不处理异常，让容器自己处理
+        if (isSseRequest(request)) {
+            return null;
+        }
         log.error("系统异常: ", e);
         return R.fail("系统异常，请稍后重试");
+    }
+
+    /**
+     * 判断是否为SSE请求
+     */
+    private boolean isSseRequest(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String accept = request.getHeader("Accept");
+        String contentType = request.getContentType();
+        return (accept != null && accept.contains("text/event-stream"))
+                || (contentType != null && contentType.contains("text/event-stream"));
     }
 }

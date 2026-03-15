@@ -62,11 +62,15 @@ public class ControllerLogAspect {
     @AfterReturning(pointcut = "controllerPointcut()", returning = "result")
     public void logResponseResult(JoinPoint joinPoint, Object result) {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes == null) {
+        if (attributes == null) {return;}
+        HttpServletRequest request = attributes.getRequest();
+
+        // 1. 【优先判断】如果是流，打印完日志直接收工，不进行后续任何处理
+        if (result instanceof org.springframework.web.servlet.mvc.method.annotation.SseEmitter) {
+            log.info("======> Response: {} {} | Result: [SSE Stream Started]",
+                    request.getMethod(), request.getRequestURI());
             return;
         }
-
-        HttpServletRequest request = attributes.getRequest();
 
         // 打印响应日志
         log.info("======> Response: {} {} | Result: {}",

@@ -2,6 +2,8 @@ server:
   port: 8080
 
 spring:
+  # 异步请求超时（SSE流式响应需要）
+  mvc.async.request-timeout: 300000
   profiles:
     active: dev
   application:

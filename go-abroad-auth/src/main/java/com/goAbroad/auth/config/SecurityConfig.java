@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -17,6 +18,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.DispatcherType;
 import java.util.Arrays;
 import java.util.List;
 
@@ -52,6 +54,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // 允许 SecurityContext 在异步派发时自动加载
+            .securityContext(context -> context.requireExplicitSave(false))
             // 禁用 CSRF
             .csrf(AbstractHttpConfigurer::disable)
             // 启用 CORS
@@ -64,6 +68,8 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             // 配置请求授权
             .authorizeHttpRequests(auth -> auth
+                // 放行 ASYNC 异步派发请求（SSE需要）
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 // 允许访问的接口
                 .requestMatchers(
                     "/api/auth/register",
@@ -73,6 +79,9 @@ public class SecurityConfig {
                     "/api/auth/social/",
                     "/error"
                 ).permitAll()
+                // 流式接口需要认证但允许预检
+                .requestMatchers(HttpMethod.OPTIONS, "/api/plan/generate/stream").permitAll()
+                .requestMatchers("/api/plan/generate/stream").authenticated()
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )

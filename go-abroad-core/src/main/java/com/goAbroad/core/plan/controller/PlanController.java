@@ -1,5 +1,7 @@
 package com.goAbroad.core.plan.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goAbroad.common.result.PageR;
 import com.goAbroad.common.result.R;
 import com.goAbroad.common.utils.UserHolder;
@@ -8,7 +10,7 @@ import com.goAbroad.core.plan.service.PlanServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/plan")
@@ -16,6 +18,7 @@ import reactor.core.publisher.Flux;
 public class PlanController {
 
     private final PlanServiceImpl planService;
+    private final ObjectMapper objectMapper;
 
     /**** 获取规划列表 ****/
     @GetMapping("/list")
@@ -62,9 +65,17 @@ public class PlanController {
     }
 
     /**** AI生成规划（流式） ****/
-    @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> generatePlanStream(@RequestBody GeneratePlanRequest request) {
+    @GetMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter generatePlanStream(
+            @RequestParam String type,
+            @RequestParam String destination,
+            @RequestParam String formData) throws Exception {
         Long userId = UserHolder.getUserId();
+        GeneratePlanRequest request = new GeneratePlanRequest();
+        request.setType(type);
+        // 将JSON字符串解析为Map
+        request.setDestination(objectMapper.readValue(destination, new TypeReference<>() {}));
+        request.setFormData(objectMapper.readValue(formData, new TypeReference<>() {}));
         return planService.generatePlanStream(userId, request);
     }
 

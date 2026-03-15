@@ -17,9 +17,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import reactor.core.publisher.Flux;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -105,21 +107,76 @@ public class PlanServiceImpl {
     }
 
     /**
-     * 流式生成规划 - 返回AI流式响应
+     * 流式生成规划 - 使用SseEmitter返回AI流式响应
      */
-    public Flux<String> generatePlanStream(Long userId, GeneratePlanRequest request) {
+    public SseEmitter generatePlanStream(Long userId, GeneratePlanRequest request) {
         // 构建AI提示词
         String prompt = buildPrompt(request);
 
         // 根据类型获取对应的AI专家
         String systemPrompt = getSystemPromptByType(request.getType());
 
-        // 流式调用AI，返回Flux<String>
-        return chatClient.prompt()
+        // 创建SseEmitter，超时时间5分钟
+        SseEmitter emitter = new SseEmitter(300_000L);
+
+        // 【关键】增加状态标志位，防止连接断开后继续写数据
+        AtomicBoolean isCompleted = new AtomicBoolean(false);
+
+        // 统一的清理方法
+        Runnable cleanup = () -> {
+            if (isCompleted.compareAndSet(false, true)) {
+                emitter.complete();
+            }
+        };
+
+        // 注册回调
+        emitter.onCompletion(cleanup);
+        emitter.onTimeout(cleanup);
+        emitter.onError(e -> {
+            log.warn("SSE 错误: {}", e.getMessage());
+            cleanup.run();
+        });
+
+        try {
+            emitter.send(SseEmitter.event().comment("init"));
+        } catch (IOException e) {
+            log.warn("SSE 握手失败: {}", e.getMessage());
+            cleanup.run();
+            return emitter;
+        }
+
+        // 使用SseEmitter处理异步流式响应
+        chatClient.prompt()
                 .system(systemPrompt)
                 .user(prompt)
                 .stream()
-                .content();
+                .content()
+                .subscribe(
+                        chunk -> {
+                            if (isCompleted.get()) return; // 如果已断开，直接跳过
+                            try {
+                                emitter.send(SseEmitter.event().data(chunk));
+                            } catch (Exception e) {
+                                log.warn("前端断开连接: {}", e.getMessage());
+                                cleanup.run(); // 报错立即清理
+                            }
+                        },
+                        error -> {
+                            log.error("AI 响应错误: {}", error.getMessage());
+                            cleanup.run();
+                        },
+                        () -> {
+                            if (!isCompleted.get()) {
+                                try {
+                                    emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                                } catch (Exception ignored) {
+                                }
+                                cleanup.run();
+                            }
+                        }
+                );
+
+        return emitter;
     }
 
     private String buildPrompt(GeneratePlanRequest request) {
