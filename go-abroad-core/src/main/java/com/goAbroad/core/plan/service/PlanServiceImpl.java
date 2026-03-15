@@ -19,8 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -131,28 +132,8 @@ public class PlanServiceImpl {
 
         // 注册回调
         emitter.onCompletion(cleanup);
-        emitter.onTimeout(() -> {
-            log.warn("SSE 超时，通知前端重连");
-            try {
-                emitter.send(SseEmitter.event().name("reconnect").data("timeout"));
-            } catch (Exception ignored) {}
-            cleanup.run();
-        });
-        emitter.onError(e -> {
-            log.warn("SSE 错误: {}", e.getMessage());
-            try {
-                emitter.send(SseEmitter.event().name("reconnect").data("error"));
-            } catch (Exception ignored) {}
-            cleanup.run();
-        });
-
-        try {
-            emitter.send(SseEmitter.event().comment("init"));
-        } catch (IOException e) {
-            log.warn("SSE 握手失败: {}", e.getMessage());
-            cleanup.run();
-            return emitter;
-        }
+        emitter.onTimeout(cleanup);
+        emitter.onError(e -> {log.warn("SSE 错误: {}", e.getMessage());cleanup.run();});
 
         // 使用SseEmitter处理异步流式响应
         chatClient.prompt()
@@ -178,8 +159,7 @@ public class PlanServiceImpl {
                             if (!isCompleted.get()) {
                                 try {
                                     emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                                } catch (Exception ignored) {
-                                }
+                                } catch (Exception ignored) {}
                                 cleanup.run();
                             }
                         }
