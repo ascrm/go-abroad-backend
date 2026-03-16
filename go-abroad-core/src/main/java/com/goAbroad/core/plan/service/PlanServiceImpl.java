@@ -26,7 +26,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -121,25 +120,14 @@ public class PlanServiceImpl {
      * 流式完成后自动同步解析 JSON 并存入 Redis
      */
     public SseEmitter generatePlanStream(Long userId, GeneratePlanRequest request) {
-
         String prompt = AiUtils.buildPrompt(request);
         String systemPrompt = AiUtils.getSystemPromptByType(request.getType());
         SseEmitter emitter = new SseEmitter(300_000L);
-        AtomicBoolean isCompleted = new AtomicBoolean(false);
         StringBuilder contentBuilder = new StringBuilder();
         String parseKey = java.util.UUID.randomUUID().toString();
 
-        // 统一的清理方法
-        Runnable cleanup = () -> {
-            if (isCompleted.compareAndSet(false, true)) {
-                emitter.complete();
-            }
-        };
-
-        // 注册回调
-        emitter.onCompletion(cleanup);
-        emitter.onTimeout(cleanup);
-        emitter.onError(e -> {log.warn("SSE 错误: {}", e.getMessage());cleanup.run();});
+        emitter.onCompletion(emitter::complete);
+        emitter.onTimeout(emitter::complete);
 
         // 使用SseEmitter处理异步流式响应
         chatClient.prompt()
@@ -147,36 +135,28 @@ public class PlanServiceImpl {
                 .user(prompt)
                 .stream()
                 .content()
+                .doOnNext(contentBuilder::append) // 优雅地收集内容
+                .doOnError(e -> log.error("AI响应错误", e))
+                .doOnTerminate(emitter::complete) // 无论成功失败都关闭Emitter
                 .subscribe(
                         chunk -> {
-                            if (isCompleted.get()) return; // 如果已断开，直接跳过
-                            contentBuilder.append(chunk);
                             try {
                                 emitter.send(SseEmitter.event().data(chunk));
-                            } catch (Exception ignore) {}
-                        },
-                        error -> {
-                            log.error("AI 响应错误: {}", error.getMessage());
-                            cleanup.run();
-                        },
-                        () -> {
-                            if (!isCompleted.get()) {
-                                try {
-                                    emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                                } catch (Exception ignored) {}
-
-                                String fullContent = contentBuilder.toString();
-                                parseAndSaveToRedis(parseKey, fullContent);
-                                try {
-                                    emitter.send(SseEmitter.event()
-                                            .name("parseKey")
-                                            .data("parseKey:" + parseKey));
-                                } catch (Exception ignored) {}
-                                cleanup.run();
+                            } catch (Exception e) {throw new RuntimeException("SSE send failed");
                             }
+                        },
+                        err -> {},
+                        ()->{
+                            try {
+                                emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                            } catch (Exception ignored) {}
+
+                            parseAndSaveToRedis(parseKey, contentBuilder.toString());
+                            try {
+                                emitter.send(SseEmitter.event().name("parseKey").data(parseKey));
+                            } catch (Exception ignored) {}
                         }
                 );
-
         return emitter;
     }
 
