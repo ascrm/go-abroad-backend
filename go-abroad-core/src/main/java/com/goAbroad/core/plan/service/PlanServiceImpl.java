@@ -1,5 +1,6 @@
 package com.goAbroad.core.plan.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.common.result.PageR;
 import com.goAbroad.core.plan.dto.*;
@@ -10,18 +11,20 @@ import com.goAbroad.core.plan.mapper.PlanMapper;
 import com.goAbroad.core.plan.repository.PlanPhaseRepository;
 import com.goAbroad.core.plan.repository.PlanRepository;
 import com.goAbroad.core.plan.repository.PlanTaskRepository;
+import com.goAbroad.core.plan.utils.AiUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -35,6 +38,11 @@ public class PlanServiceImpl {
     private final PlanTaskRepository taskRepository;
     private final PlanMapper planMapper;
     private final ChatClient chatClient;
+    private final ObjectMapper objectMapper;
+    private final StringRedisTemplate redisTemplate;
+
+    // Redis key 前缀
+    private static final String PLAN_PARSED_KEY_PREFIX = "plan:parsed:";
 
     public PageR<PlanResponse> getPlanList(Long userId, String type, String status, Integer page, Integer pageSize) {
         PageRequest pageRequest = PageRequest.of(page - 1, pageSize);
@@ -109,19 +117,25 @@ public class PlanServiceImpl {
 
     /**
      * 流式生成规划 - 使用SseEmitter返回AI流式响应
+     * 流式完成后自动同步解析 JSON 并存入 Redis
      */
     public SseEmitter generatePlanStream(Long userId, GeneratePlanRequest request) {
         // 构建AI提示词
-        String prompt = buildPrompt(request);
+        String prompt = AiUtils.buildPrompt(request);
 
         // 根据类型获取对应的AI专家
-        String systemPrompt = getSystemPromptByType(request.getType());
+        String systemPrompt = AiUtils.getSystemPromptByType(request.getType());
 
         // 创建SseEmitter，超时时间5分钟
         SseEmitter emitter = new SseEmitter(300_000L);
 
         // 【关键】增加状态标志位，防止连接断开后继续写数据
         AtomicBoolean isCompleted = new AtomicBoolean(false);
+
+        // 用于拼接完整的流式内容
+        StringBuilder contentBuilder = new StringBuilder();
+        // 生成唯一的解析 key
+        String parseKey = java.util.UUID.randomUUID().toString();
 
         // 统一的清理方法
         Runnable cleanup = () -> {
@@ -144,6 +158,7 @@ public class PlanServiceImpl {
                 .subscribe(
                         chunk -> {
                             if (isCompleted.get()) return; // 如果已断开，直接跳过
+                            contentBuilder.append(chunk);
                             try {
                                 emitter.send(SseEmitter.event().data(chunk));
                             } catch (Exception e) {
@@ -158,8 +173,20 @@ public class PlanServiceImpl {
                         () -> {
                             if (!isCompleted.get()) {
                                 try {
-                                    emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                                    emitter.send(SseEmitter.event()
+                                            .name("done"));
+                                    log.info("+++++++++++++流式输出结束+++++++++++++");
                                 } catch (Exception ignored) {}
+
+                                String fullContent = contentBuilder.toString();
+                                parseAndSaveToRedis(parseKey, fullContent);
+
+                                try {
+                                    emitter.send(SseEmitter.event()
+                                            .name("parseKey")
+                                            .data("parseKey:" + parseKey));
+                                } catch (Exception ignored) {}
+
                                 cleanup.run();
                             }
                         }
@@ -168,49 +195,86 @@ public class PlanServiceImpl {
         return emitter;
     }
 
-    private String buildPrompt(GeneratePlanRequest request) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("请根据以下信息生成一个留学/出境规划。\n");
-        sb.append("用自然语言输出，分点描述，包含以下内容：\n");
-        sb.append("1. 规划标题\n");
-        sb.append("2. 各个阶段名称和说明\n");
-        sb.append("3. 每个阶段下的具体任务\n");
-        sb.append("4. 共3-4个阶段，每个阶段3-4个任务\n");
-        sb.append("5. 用简洁的中文\n\n");
+    /**
+     * 同步解析 content 为 JSON 并存入 Redis
+     */
+    private void parseAndSaveToRedis(String parseKey, String content) {
+        try {
+            // 构建解析 prompt
+            String parsePrompt = AiUtils.buildParseContentPrompt(content);
 
-        sb.append("用户信息：\n");
-        if (request.getDestination() != null) {
-            sb.append("目的地：").append(request.getDestination()).append("\n");
+            // 调用 AI 解析
+            String aiResponse = chatClient.prompt()
+                    .system("你是一个专业的JSON解析器，请准确解析文本为JSON格式。只返回JSON，不要其他内容。")
+                    .user(parsePrompt)
+                    .call()
+                    .content();
+
+            // 解析 AI 返回的 JSON
+            SaveGeneratedRequest.ParsedContent parsed = parseAiResponse(aiResponse);
+
+            // 序列化为 JSON 存入 Redis，过期时间 10 分钟
+            String json = objectMapper.writeValueAsString(parsed);
+            redisTemplate.opsForValue().set(
+                    PLAN_PARSED_KEY_PREFIX + parseKey,
+                    json,
+                    Duration.ofMinutes(10)
+            );
+
+            log.info("规划内容解析成功，已存入 Redis，key: {}", parseKey);
+        } catch (Exception e) {
+            log.error("解析规划内容失败: {}", e.getMessage());
         }
-        if (request.getFormData() != null) {
-            for (Map.Entry<String, Object> entry : request.getFormData().entrySet()) {
-                sb.append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
+    }
+
+    /**
+     * 获取解析后的内容
+     * 优先从 Redis 获取，如果没有则降级调用 AI 解析
+     */
+    private SaveGeneratedRequest.ParsedContent getParsedContent(SaveGeneratedRequest request) {
+        String parseKey = request.getParseKey();
+
+        // 1. 尝试从 Redis 获取
+        if (parseKey != null && !parseKey.isEmpty()) {
+            String json = redisTemplate.opsForValue().get(PLAN_PARSED_KEY_PREFIX + parseKey);
+            if (json != null) {
+                try {
+                    // 解析成功后删除 Redis 数据（可选）
+                    redisTemplate.delete(PLAN_PARSED_KEY_PREFIX + parseKey);
+                    return objectMapper.readValue(json, SaveGeneratedRequest.ParsedContent.class);
+                } catch (Exception e) {
+                    log.warn("从 Redis 解析 JSON 失败: {}", e.getMessage());
+                }
             }
         }
 
-        sb.append("\n直接输出规划内容。");
-        return sb.toString();
+        // 2. 降级处理：调用 AI 同步解析
+        log.info("Redis 中无缓存数据，降级调用 AI 解析");
+        return parseContentByAi(request.getContent());
     }
 
-    private String getSystemPromptByType(String type) {
-        if (type == null) {
-            return "你是一个专业的出境规划顾问，请用简洁的中文回复。";
-        }
-        return switch (type.toLowerCase()) {
-            case "study" -> "你是一个专业的留学规划顾问，专长于申请流程、学校选择、签证办理等。请用简洁的中文回复。";
-            case "tourism" -> "你是一个专业的出境旅游规划顾问，专长于行程安排、签证办理、景点推荐等。请用简洁的中文回复。";
-            case "work" -> "你是一个专业的海外工作规划顾问，专长于职业规划、求职技巧、工签办理等。请用简洁的中文回复。";
-            case "immigration" -> "你是一个专业的移民规划顾问，专长于各国移民政策、投资移民、技术移民等。请用简洁的中文回复。";
-            default -> "你是一个专业的出境规划顾问，请用简洁的中文回复。";
-        };
+    /**
+     * 调用 AI 同步解析 content
+     */
+    private SaveGeneratedRequest.ParsedContent parseContentByAi(String content) {
+        String parsePrompt = AiUtils.buildParseContentPrompt(content);
+        String aiResponse = chatClient.prompt()
+                .system("你是一个专业的JSON解析器，请准确解析文本为JSON格式。")
+                .user(parsePrompt)
+                .call()
+                .content();
+        return parseAiResponse(aiResponse);
     }
 
     @Transactional
     public PlanResponse saveGeneratedPlan(Long userId, SaveGeneratedRequest request) {
-        // 保存规划
+        // 1. 优先从 Redis 获取已解析的 JSON，如果没有则降级处理
+        SaveGeneratedRequest.ParsedContent parsed = getParsedContent(request);
+
+        // 2. 保存规划
         Plan plan = Plan.builder()
                 .userId(userId)
-                .title(request.getTitle())
+                .title(parsed.getTitle())
                 .type(Plan.PlanType.valueOf(request.getType()))
                 .destination(request.getDestination())
                 .formData(request.getFormData())
@@ -218,11 +282,11 @@ public class PlanServiceImpl {
                 .build();
         plan = planRepository.save(plan);
 
-        // 批量保存阶段
+        // 4. 批量保存阶段
         List<PlanPhase> phases = new ArrayList<>();
-        if (request.getPhases() != null) {
+        if (parsed.getPhases() != null) {
             int phaseOrder = 0;
-            for (SaveGeneratedRequest.PhaseDto phaseDto : request.getPhases()) {
+            for (SaveGeneratedRequest.PhaseDto phaseDto : parsed.getPhases()) {
                 PlanPhase phase = PlanPhase.builder()
                         .planId(plan.getId())
                         .title(phaseDto.getTitle())
@@ -234,11 +298,11 @@ public class PlanServiceImpl {
             phases = phaseRepository.saveAll(phases);
         }
 
-        // 批量保存任务
+        // 5. 批量保存任务
         List<PlanTask> tasks = new ArrayList<>();
         for (int i = 0; i < phases.size(); i++) {
             PlanPhase phase = phases.get(i);
-            SaveGeneratedRequest.PhaseDto phaseDto = request.getPhases().get(i);
+            SaveGeneratedRequest.PhaseDto phaseDto = parsed.getPhases().get(i);
             if (phaseDto.getTasks() != null) {
                 int taskOrder = 0;
                 for (SaveGeneratedRequest.TaskDto taskDto : phaseDto.getTasks()) {
@@ -246,7 +310,6 @@ public class PlanServiceImpl {
                             .phaseId(phase.getId())
                             .title(taskDto.getTitle())
                             .description(taskDto.getDescription())
-                            .aiSuggestion(taskDto.getAiSuggestion())
                             .sortOrder(taskOrder++)
                             .isCompleted(false)
                             .build();
@@ -257,6 +320,25 @@ public class PlanServiceImpl {
         taskRepository.saveAll(tasks);
 
         return planMapper.toResponse(plan);
+    }
+
+    /**
+     * 解析 AI 返回的 JSON 响应
+     */
+    private SaveGeneratedRequest.ParsedContent parseAiResponse(String aiResponse) {
+        try {
+            // 去除 markdown 代码块标记
+            String jsonStr = aiResponse
+                    .replaceAll("^```json\\s*", "")
+                    .replaceAll("^```\\s*", "")
+                    .replaceAll("\\s*```$", "")
+                    .trim();
+
+            return objectMapper.readValue(jsonStr, SaveGeneratedRequest.ParsedContent.class);
+        } catch (Exception e) {
+            log.error("解析AI响应失败: {}", e.getMessage());
+            throw new BusinessException("解析规划内容失败，请重试");
+        }
     }
 
     @Transactional
