@@ -137,7 +137,6 @@ public class PlanServiceImpl {
                 .content()
                 .doOnNext(contentBuilder::append) // 优雅地收集内容
                 .doOnError(e -> log.error("AI响应错误", e))
-                .doOnTerminate(emitter::complete) // 无论成功失败都关闭Emitter
                 .subscribe(
                         chunk -> {
                             try {
@@ -155,6 +154,7 @@ public class PlanServiceImpl {
                             try {
                                 emitter.send(SseEmitter.event().name("parseKey").data(parseKey));
                             } catch (Exception ignored) {}
+                            emitter.complete();
                         }
                 );
         return emitter;
@@ -199,7 +199,6 @@ public class PlanServiceImpl {
 
     /**
      * 获取redis中的JSON数据
-     * 优先从 Redis 获取，如果没有则降级调用 AI 解析
      */
     @SneakyThrows
     private SaveGeneratedRequest.ParsedContent getParsedContent(SaveGeneratedRequest request) {
