@@ -1,6 +1,5 @@
 package com.goAbroad.core.plan.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.common.result.PageR;
 import com.goAbroad.core.plan.dto.*;
@@ -13,17 +12,14 @@ import com.goAbroad.core.plan.repository.PlanRepository;
 import com.goAbroad.core.plan.repository.PlanTaskRepository;
 import com.goAbroad.core.plan.utils.AiUtils;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,11 +34,6 @@ public class PlanServiceImpl {
     private final PlanTaskRepository taskRepository;
     private final PlanMapper planMapper;
     private final ChatClient chatClient;
-    private final ObjectMapper objectMapper;
-    private final StringRedisTemplate redisTemplate;
-
-    // Redis key 前缀
-    private static final String PLAN_PARSED_KEY_PREFIX = "plan:parsed:";
 
     public PageR<PlanResponse> getPlanList(Long userId, String type, String status, Integer page, Integer pageSize) {
         PageRequest pageRequest = PageRequest.of(page - 1, pageSize);
@@ -117,15 +108,11 @@ public class PlanServiceImpl {
 
     /**
      * 流式生成规划 - 使用SseEmitter返回AI流式响应
-     * 流式完成后自动同步解析 JSON 并存入 Redis
      */
     public SseEmitter generatePlanStream(Long userId, GeneratePlanRequest request) {
         String prompt = AiUtils.buildPrompt(request);
         String systemPrompt = AiUtils.getSystemPromptByType(request.getType());
         SseEmitter emitter = new SseEmitter(300_000L);
-        StringBuilder contentBuilder = new StringBuilder();
-        String parseKey = java.util.UUID.randomUUID().toString();
-
         emitter.onCompletion(emitter::complete);
         emitter.onTimeout(emitter::complete);
 
@@ -135,7 +122,6 @@ public class PlanServiceImpl {
                 .user(prompt)
                 .stream()
                 .content()
-                .doOnNext(contentBuilder::append) // 优雅地收集内容
                 .doOnError(e -> log.error("AI响应错误", e))
                 .subscribe(
                         chunk -> {
@@ -147,12 +133,7 @@ public class PlanServiceImpl {
                         err -> {},
                         ()->{
                             try {
-                                emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                            } catch (Exception ignored) {}
-
-                            parseAndSaveToRedis(parseKey, contentBuilder.toString());
-                            try {
-                                emitter.send(SseEmitter.event().name("parseKey").data(parseKey));
+                                emitter.send(SseEmitter.event().name("done").data("done"));
                             } catch (Exception ignored) {}
                             emitter.complete();
                         }
@@ -160,58 +141,9 @@ public class PlanServiceImpl {
         return emitter;
     }
 
-    /**
-     * 同步解析 content 为 JSON 并存入 Redis
-     */
-    @SneakyThrows
-    private void parseAndSaveToRedis(String parseKey, String content) {
-        String parsePrompt = AiUtils.buildParseContentPrompt(content);
-        String aiResponse = chatClient.prompt()
-                .system("你是一个专业的JSON解析器，请准确解析文本为JSON格式。只返回JSON，不要其他内容。")
-                .user(parsePrompt)
-                .call()
-                .content();
-
-        SaveGeneratedRequest.ParsedContent parsed = parseAiResponse(aiResponse);
-        String json = objectMapper.writeValueAsString(parsed);
-        redisTemplate.opsForValue().set(PLAN_PARSED_KEY_PREFIX + parseKey, json, Duration.ofMinutes(10));
-    }
-
-    /**
-     * 解析 AI 返回的 JSON 响应
-     */
-    private SaveGeneratedRequest.ParsedContent parseAiResponse(String aiResponse) {
-        try {
-            // 去除 markdown 代码块标记
-            String jsonStr = aiResponse
-                    .replaceAll("^```json\\s*", "")
-                    .replaceAll("^```\\s*", "")
-                    .replaceAll("\\s*```$", "")
-                    .trim();
-
-            return objectMapper.readValue(jsonStr, SaveGeneratedRequest.ParsedContent.class);
-        } catch (Exception e) {
-            log.error("解析AI响应失败: {}", e.getMessage());
-            throw new BusinessException("解析规划内容失败，请重试");
-        }
-    }
-
-
-    /**
-     * 获取redis中的JSON数据
-     */
-    @SneakyThrows
-    private SaveGeneratedRequest.ParsedContent getParsedContent(SaveGeneratedRequest request) {
-        String parseKey = request.getParseKey();
-        String json = redisTemplate.opsForValue().get(PLAN_PARSED_KEY_PREFIX + parseKey);
-        redisTemplate.delete(PLAN_PARSED_KEY_PREFIX + parseKey);
-        return objectMapper.readValue(json, SaveGeneratedRequest.ParsedContent.class);
-    }
-
     @Transactional
     public PlanResponse saveGeneratedPlan(Long userId, SaveGeneratedRequest request) {
-        // 1. 从 Redis 获取已解析的 JSON
-        SaveGeneratedRequest.ParsedContent parsed = getParsedContent(request);
+        SaveGeneratedRequest.ParsedContent parsed = AiUtils.parseFromMarkdown(request.getContent());
 
         // 2. 保存规划
         Plan plan = Plan.builder()

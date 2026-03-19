@@ -1,61 +1,166 @@
 package com.goAbroad.core.plan.utils;
 
+import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.core.plan.dto.GeneratePlanRequest;
+import com.goAbroad.core.plan.dto.SaveGeneratedRequest;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AiUtils {
 
-    /**
-     * 构建用户提示词，包含输出示例（Few-shot）
-     */
     public static String buildPrompt(GeneratePlanRequest request) {
         StringBuilder sb = new StringBuilder();
-        sb.append("请根据以下信息生成一个留学/出境规划。\n");
-        sb.append("请严格按照以下格式输出：\n\n");
 
-        // 添加输出示例（Few-shot）
-        sb.append("【输出示例】\n");
-        sb.append("一、规划标题\n");
-        sb.append("美国研究生申请全程规划\n\n");
-        sb.append("二、阶段划分\n\n");
-        sb.append("（一）准备阶段（2024年1月-3月）\n");
-        sb.append("1. 准备阶段说明：进行留学前期准备，包括选校研究、材料准备等\n");
-        sb.append("2. 参加语言考试：完成托福/雅思考试，目标分数100+/7.0+\n");
-        sb.append("3. 准备申请材料：开具成绩单、准备在读证明等\n\n");
-        sb.append("（二）申请阶段（2024年4月-8月）\n");
-        sb.append("1. 申请阶段说明：完成学校申请提交\n");
-        sb.append("2. 撰写个人陈述：突出个人优势和申请动机\n");
-        sb.append("3. 获取推荐信：联系教授准备推荐信\n\n");
-        sb.append("（三）录取阶段（2024年9月-12月）\n");
-        sb.append("1. 录取阶段说明：等待录取结果\n");
-        sb.append("2. 跟进申请状态：及时查看申请 portal\n");
-        sb.append("3. 选择offer：综合考虑后确定最终入读学校\n\n");
-        sb.append("（四）行前阶段（2025年1月-8月）\n");
-        sb.append("1. 行前阶段说明：做好行前准备工作\n");
-        sb.append("2. 办理签证：准备签证材料，预约面签\n");
-        sb.append("3. 体检与疫苗：完成体检和required疫苗\n");
-        sb.append("4. 预订机票和住宿：安排行程和住宿\n\n");
-        sb.append("【注意】\n");
-        sb.append("- 阶段名称使用中文数字：一、二、三、四\n");
-        sb.append("- 阶段内使用阿拉伯数字：1. 2. 3.\n");
-        sb.append("- 阶段说明格式：阶段名称+（时间范围）+说明文字\n");
-        sb.append("- 任务说明格式：序号+任务名称：任务详细说明\n");
-        sb.append("- 共3-4个阶段，每个阶段2-4个任务\n");
-        sb.append("- 用简洁的中文\n\n");
+        sb.append("请根据以下用户信息，生成一个出国规划方案。\n\n");
 
-        sb.append("【用户信息】\n");
-        if (request.getDestination() != null) {
-            sb.append("目的地：").append(request.getDestination()).append("\n");
-        }
-        if (request.getFormData() != null) {
-            for (Map.Entry<String, Object> entry : request.getFormData().entrySet()) {
-                sb.append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
+        // 规划类型
+        sb.append("【规划类型】").append(nullSafe(request.getType())).append("\n\n");
+
+        // 目的地信息
+        if (request.getDestination() != null && !request.getDestination().isEmpty()) {
+            sb.append("【目的地信息】\n");
+            for (var entry : request.getDestination().entrySet()) {
+                sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
             }
+            sb.append("\n");
         }
 
-        sb.append("\n请直接输出规划内容，不需要其他解释。");
+        // 用户表单数据
+        if (request.getFormData() != null && !request.getFormData().isEmpty()) {
+            sb.append("【用户信息】\n");
+            for (var entry : request.getFormData().entrySet()) {
+                sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("【输出格式要求】\n");
+        sb.append("请用 Markdown 格式输出规划方案，严格遵循以下结构：\n");
+        sb.append("- 第一行：一级标题（## ），作为规划总标题\n");
+        sb.append("- 每个阶段：一行二级标题（### ）+ 一段阶段描述 + 若干任务列表\n");
+        sb.append("- 每个任务：一行列表项（- ），格式为 **任务标题** | 任务详细描述\n\n");
+
+        sb.append("【格式规范】\n");
+        sb.append("- 阶段数量建议 3~6 个，从准备到出发递进排列\n");
+        sb.append("- 每个阶段包含 3~6 个具体任务\n");
+        sb.append("- 任务描述应包含具体操作步骤、时间建议、注意事项，使任务可执行\n");
+        sb.append("- 只输出 Markdown 格式内容，不要输出任何解释性文字\n\n");
+
+        // 参考示例（自然语言部分，不含 [PARSE] 行）
+        sb.append("【参考示例】\n\n");
+        sb.append("假设用户提供以下信息：\n");
+        sb.append("- 目的地：日本\n");
+        sb.append("- 目标：日本东京大学修士（硕士）\n");
+        sb.append("- 当前年级：大三\n");
+        sb.append("- 日语水平：N2\n");
+        sb.append("- 计划入学时间：2026年4月\n\n");
+        sb.append("请按以下格式生成：\n\n");
+
+        sb.append("## 日本东京大学修士留学规划（2025-2026）\n\n");
+        sb.append("### 第一阶段：信息收集与目标确定\n");
+        sb.append("全面了解东大修士申请要求、招生简章、时间节点，确定研究方向与目标导师。\n\n");
+        sb.append("- **研究教授信息** | 登录东大官网，查阅各研究室主页，整理目标教授的研究方向、论文列表及招生偏好，筛选3-5位匹配导师。\n\n");
+        sb.append("- **确认申请要求** | 查阅东大修士募集要项，明确语言成绩（托业/托福/日语）、研究计划书、研究科内诺等硬性要求，整理材料清单。\n\n");
+        sb.append("- **评估自身背景** | 整理现有GPA、获奖经历、科研项目、论文发表等背景，评估与东大要求的差距，明确提升方向。\n\n");
+        sb.append("### 第二阶段：语言能力提升\n");
+        sb.append("集中提升日语和英语成绩，达到东大各学科的出愿标准，争取高分。\n\n");
+        sb.append("- **日语N1冲刺** | 制定每日日语学习计划，重点突破阅读和听力，辅以写作训练；目标在2025年7月或12月JLPT中取得N1证书。\n\n");
+        sb.append("- **英语成绩备考** | 东大多数文科专业要求托业730+或托福80+，建议备考托业，目标800分以上；提前准备证件照和报名，避开旺季抢位。\n\n");
+        sb.append("### 第三阶段：研究计划书撰写\n");
+        sb.append("围绕目标研究室方向，撰写高质量研究计划书，反复修改完善。\n\n");
+        sb.append("- **确定研究课题** | 阅读目标教授近期论文3-5篇，结合自身兴趣，确定2-3个研究课题方向，初步撰写研究动机和意义。\n\n");
+        sb.append("- **撰写研究计划书** | 按东大格式要求撰写，涵盖研究背景、先行研究、研究目的、研究方法、预期成果、参考文献，字数控制在3000-5000字。\n\n");
+        sb.append("- **联系目标导师** | 通过邮件附上研究计划书草稿联系教授，邮件内容包括自我介绍、研究兴趣、为何选择该研究室；等待回复并根据反馈修改。\n\n");
+        sb.append("### 第四阶段：材料准备与出愿\n");
+        sb.append("按时间节点整理全部出愿材料，在规定时间内完成出愿手续。\n\n");
+        sb.append("- **整理成绩单等材料** | 联系本科学校教务处开具官方成绩单（日文或英文版）、毕业证明、学位证明；提前公证，确保材料真实有效。\n\n");
+        sb.append("- **完成在线出愿** | 登录东大申请系统，填写个人信息、教育经历，上传研究计划书、语言成绩单、照片等材料；检查无误后提交并缴纳检定料。\n\n");
+        sb.append("- **邮寄出愿材料** | 将纸质材料按东大要求装订密封，通过国际快递（EMS/DHL）邮寄，保留快递单号跟踪。\n\n");
+        sb.append("### 第五阶段：等待与行前准备\n");
+        sb.append("等待录取结果，做好赴日行前准备，办理在留资格和签证。\n\n");
+        sb.append("- **等待录取通知** | 关注东大出愿结果公布时间（通常为2-3月），保持邮箱畅通；若收到补交材料通知及时处理。\n\n");
+        sb.append("- **申请在留资格** | 收到录取通知后，配合学校申请在留资格认定证明书（COE），准备收入证明、经费支付书等材料；等待入管局审批。\n\n");
+        sb.append("- **办理留学签证** | 在留资格获批后，前往日本驻华大使馆/领事馆递交签证申请材料，准备护照、签证申请表、录取通知书、在留资格证明、照片等。\n\n");
+        sb.append("- **行前准备** | 预订机票、准备行李（药品、转换插头、少量日元现金）、开通手机漫游、加入国民健康保险、了解宿舍申请流程。\n\n");
+        sb.append("请严格按照上述格式，根据用户提供的信息生成专属规划方案。");
+
         return sb.toString();
+    }
+
+    /**
+     * 用正则从 AI 返回的 Markdown 纯文本中解析出结构化数据。
+     * 格式约定：
+     * - 规划总标题：## 标题
+     * - 阶段标题：### 标题（可能带"第X阶段："前缀）
+     * - 阶段描述：阶段标题后紧跟的段落（非列表行）
+     * - 任务：- **任务标题** | 任务描述
+     */
+    public static SaveGeneratedRequest.ParsedContent parseFromMarkdown(String content) {
+        if (content == null || content.isBlank()) {
+            throw new BusinessException("AI 返回的内容为空");
+        }
+
+        SaveGeneratedRequest.ParsedContent result = new SaveGeneratedRequest.ParsedContent();
+
+        // 1. 提取总标题：## 标题
+        Matcher titleMatcher = Pattern.compile("^##\\s+(.+?)\\s*$", Pattern.MULTILINE).matcher(content);
+        if (titleMatcher.find()) {
+            result.setTitle(titleMatcher.group(1).trim());
+        }
+        if (result.getTitle() == null || result.getTitle().isBlank()) {
+            throw new BusinessException("AI 返回内容缺少规划标题（## 标题）");
+        }
+
+        // 2. 提取所有阶段
+        // 阶段格式：### 标题 ...（描述段落）... - **任务** | 描述 ...下一个阶段或结束
+        Pattern phasePattern = Pattern.compile(
+                "(?m)^###\\s+(.+?)\\s*\\n(.*?)(?=^###\\s+|\\Z)",
+                Pattern.DOTALL
+        );
+        Matcher phaseMatcher = phasePattern.matcher(content);
+        List<SaveGeneratedRequest.PhaseDto> phases = new ArrayList<>();
+
+        while (phaseMatcher.find()) {
+            SaveGeneratedRequest.PhaseDto phase = new SaveGeneratedRequest.PhaseDto();
+            phase.setTitle(phaseMatcher.group(1).trim());
+
+            String phaseBody = phaseMatcher.group(2);
+
+            // 提取阶段描述：阶段标题后的第一段非列表文字
+            Matcher descMatcher = Pattern.compile("(?m)^(?!- ).+?\\n").matcher(phaseBody);
+            if (descMatcher.find()) {
+                String desc = descMatcher.group().trim();
+                phase.setDescription(desc);
+            } else {
+                phase.setDescription("");
+            }
+
+            // 提取所有任务：- **标题** | 描述
+            Pattern taskPattern = Pattern.compile(
+                    "\\*\\*(.+?)\\*\\*\\s*\\|\\s*(.+?)(?=\\n- \\*\\*|\\n###|\\Z)",
+                    Pattern.DOTALL
+            );
+            Matcher taskMatcher = taskPattern.matcher(phaseBody);
+            List<SaveGeneratedRequest.TaskDto> tasks = new ArrayList<>();
+            while (taskMatcher.find()) {
+                SaveGeneratedRequest.TaskDto task = new SaveGeneratedRequest.TaskDto();
+                task.setTitle(taskMatcher.group(1).trim());
+                task.setDescription(taskMatcher.group(2).trim().replaceAll("\\s+", " "));
+                tasks.add(task);
+            }
+            phase.setTasks(tasks);
+            phases.add(phase);
+        }
+
+        if (phases.isEmpty()) {
+            throw new BusinessException("AI 返回内容缺少阶段（### 标题），无法解析");
+        }
+
+        result.setPhases(phases);
+        return result;
     }
 
     /**
@@ -74,37 +179,7 @@ public class AiUtils {
         };
     }
 
-    /**
-     * 构建解析 content 的提示词，将自然语言文本解析为 JSON 结构
-     */
-    public static String buildParseContentPrompt(String content) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("请将以下留学/出境规划文本解析为JSON结构。\n\n");
-        sb.append("【解析要求】\n");
-        sb.append("1. 提取规划标题（title）- 位于\"一、\"后面的内容\n");
-        sb.append("2. 提取所有阶段（phases），每个阶段包含：\n");
-        sb.append("   - title: 阶段标题，如\"准备阶段\"、\"申请阶段\"等\n");
-        sb.append("   - description: 阶段说明，从\"阶段说明\"或括号内的内容提取\n");
-        sb.append("   - tasks: 该阶段下的所有任务列表\n");
-        sb.append("3. 每个任务（task）包含：\n");
-        sb.append("   - title: 任务标题（序号后面的内容，冒号前）\n");
-        sb.append("   - description: 任务详细说明（冒号后面的内容）\n\n");
-        sb.append("【输出格式】\n");
-        sb.append("只输出JSON，不要有其他文字。格式如下：\n");
-        sb.append("{\n");
-        sb.append("  \"title\": \"规划标题\",\n");
-        sb.append("  \"phases\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"title\": \"阶段标题\",\n");
-        sb.append("      \"description\": \"阶段说明\",\n");
-        sb.append("      \"tasks\": [\n");
-        sb.append("        {\"title\": \"任务标题\", \"description\": \"任务说明\"}\n");
-        sb.append("      ]\n");
-        sb.append("    }\n");
-        sb.append("  ]\n");
-        sb.append("}\n\n");
-        sb.append("【待解析文本】\n");
-        sb.append(content);
-        return sb.toString();
+    private static String nullSafe(Object value) {
+        return value != null ? value.toString() : "未指定";
     }
 }
