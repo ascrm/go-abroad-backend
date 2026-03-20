@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS tb_plans (
                                         title VARCHAR(200) NOT NULL,
                                         type VARCHAR(20) NOT NULL CHECK (type IN ('tourism', 'study', 'work', 'immigration')),
                                         destination JSONB,
-                                        status VARCHAR(20) DEFAULT 'generating' CHECK (status IN ('draft', 'generating', 'completed', 'archived')),
+                                        status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'generating', 'completed', 'archived')),
                                         form_data JSONB,
                                         cover_image VARCHAR(500),
                                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

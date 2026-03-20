@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
@@ -14,6 +15,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Controller 日志切面
@@ -26,6 +29,8 @@ import java.util.Arrays;
 public class ControllerLogAspect {
 
     private final ObjectMapper objectMapper;
+
+    private final ConcurrentMap<Long, Long> startTimeMap = new ConcurrentHashMap<>();
 
     /**
      * 切入点：所有 Controller 类的所有方法
@@ -45,11 +50,10 @@ public class ControllerLogAspect {
         }
 
         HttpServletRequest request = attributes.getRequest();
+        startTimeMap.put(Thread.currentThread().getId(), System.currentTimeMillis());
 
-        // 获取请求参数
         String requestParams = getRequestParams(joinPoint);
 
-        // 打印请求日志
         log.info("======> Request: {} {} | Params: {}",
                 request.getMethod(),
                 request.getRequestURI(),
@@ -67,15 +71,21 @@ public class ControllerLogAspect {
 
         // 1. 【优先判断】如果是流，打印完日志直接收工，不进行后续任何处理
         if (result instanceof org.springframework.web.servlet.mvc.method.annotation.SseEmitter) {
-            log.info("======> Response: {} {} | Result: [SSE Stream Started]",
-                    request.getMethod(), request.getRequestURI());
+            Long startTime = startTimeMap.remove(Thread.currentThread().getId());
+            long cost = startTime != null ? System.currentTimeMillis() - startTime : 0;
+            log.info("======> Response: {} {} | Cost: {}ms | Result: [SSE Stream Started]",
+                    request.getMethod(), request.getRequestURI(), cost);
             return;
         }
 
+        Long startTime = startTimeMap.remove(Thread.currentThread().getId());
+        long cost = startTime != null ? System.currentTimeMillis() - startTime : 0;
+
         // 打印响应日志
-        log.info("======> Response: {} {} | Result: {}",
+        log.info("======> Response: {} {} | Cost: {}ms | Result: {}",
                 request.getMethod(),
                 request.getRequestURI(),
+                cost,
                 truncateResult(result));
     }
 
@@ -141,5 +151,24 @@ public class ControllerLogAspect {
         } catch (Exception e) {
             return result.toString();
         }
+    }
+
+    /**
+     * 异常时打印日志并清理 startTimeMap，防止内存泄漏
+     */
+    @AfterThrowing(pointcut = "controllerPointcut()", throwing = "ex")
+    public void logException(JoinPoint joinPoint, Throwable ex) {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {return;}
+        HttpServletRequest request = attributes.getRequest();
+
+        Long startTime = startTimeMap.remove(Thread.currentThread().getId());
+        long cost = startTime != null ? System.currentTimeMillis() - startTime : 0;
+
+        log.error("======> Exception: {} {} | Cost: {}ms | Error: {}",
+                request.getMethod(),
+                request.getRequestURI(),
+                cost,
+                ex.getMessage());
     }
 }

@@ -1,5 +1,6 @@
 package com.goAbroad.core.plan.entity;
 
+import com.goAbroad.core.plan.enums.PlanStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -38,8 +39,9 @@ public class Plan {
     private Map<String, Object> destination;
 
     @Column(length = 20)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String status = "generating";
+    private PlanStatus status = PlanStatus.draft;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "form_data", columnDefinition = "jsonb")

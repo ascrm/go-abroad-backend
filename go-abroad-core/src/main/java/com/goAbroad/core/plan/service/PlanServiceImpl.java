@@ -6,6 +6,7 @@ import com.goAbroad.core.plan.dto.*;
 import com.goAbroad.core.plan.entity.Plan;
 import com.goAbroad.core.plan.entity.PlanPhase;
 import com.goAbroad.core.plan.entity.PlanTask;
+import com.goAbroad.core.plan.enums.PlanStatus;
 import com.goAbroad.core.plan.mapper.PlanMapper;
 import com.goAbroad.core.plan.repository.PlanPhaseRepository;
 import com.goAbroad.core.plan.repository.PlanRepository;
@@ -80,8 +81,15 @@ public class PlanServiceImpl {
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new BusinessException("规划不存在"));
 
-        if (!plan.getUserId().equals(userId)) {
-            throw new BusinessException("无权限访问该规划");
+        PlanStatus newStatus = PlanStatus.valueOf(request.getStatus());
+        if (newStatus == PlanStatus.generating) {
+            boolean hasGenerating = planRepository
+                    .findByUserIdAndStatus(userId, PlanStatus.generating)
+                    .filter(p -> !p.getId().equals(planId))
+                    .isPresent();
+            if (hasGenerating) {
+                throw new BusinessException("当前存在进行中的规划...");
+            }
         }
 
         planMapper.updateFromRequest(request, plan);
@@ -152,7 +160,7 @@ public class PlanServiceImpl {
                 .type(Plan.PlanType.valueOf(request.getType()))
                 .destination(request.getDestination())
                 .formData(request.getFormData())
-                .status("completed")
+                .status(PlanStatus.completed)
                 .build();
         plan = planRepository.save(plan);
 
