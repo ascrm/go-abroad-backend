@@ -416,170 +416,64 @@ SELECT '问题表', COUNT(*) FROM tb_questions
 UNION ALL
 SELECT '回答表', COUNT(*) FROM tb_answers;
 
--- ============================================
--- Plan 模块初始数据
--- ============================================
 
--- 8. 插入规划数据
-INSERT INTO tb_plans (user_id, title, type, destination, status, form_data, created_at, updated_at)
-SELECT user_id, title, type, destination, status, form_data, created_at, updated_at
-FROM (
-         -- 赴美读研规划 (wang_li)
-         SELECT (SELECT id FROM "tb_user" WHERE username = 'wang_li' LIMIT 1) as user_id,
-                '赴美读研规划' as title,
-                'study' as type,
-                '{"country": "美国"}'::jsonb as destination,
-                'completed' as status,
-                '{"destination": {"country": "美国"}, "targetDegree": "硕士", "targetMajor": "计算机科学", "currentBackground": "北大 3.5", "languageAbility": "雅思7+", "financialAbility": "40-60万/年", "timePlan": "2026年秋季"}'::jsonb as form_data,
-                CURRENT_TIMESTAMP - INTERVAL '2 days' as created_at,
-                CURRENT_TIMESTAMP - INTERVAL '2 days' as updated_at
-         UNION ALL
-         -- 日本7日游 (wang_li)
-         SELECT (SELECT id FROM "tb_user" WHERE username = 'wang_li' LIMIT 1),
-                '日本7日游', 'tourism', '{"country": "日本"}'::jsonb, 'generating',
-                '{"destination": {"country": "日本"}, "travelBudget": "标准型", "travelDays": "7-14天", "companions": "情侣", "passportStatus": "有护照(有效期>6个月)", "profession": "在职"}'::jsonb,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-         UNION ALL
-         -- 英国工作规划 (li_xiao)
-         SELECT (SELECT id FROM "tb_user" WHERE username = 'li_xiao' LIMIT 1),
-                '英国工作规划', 'work', '{"country": "英国"}'::jsonb, 'draft',
-                '{"destination": {"country": "英国"}, "jobField": "IT/互联网", "certificates": "本科 + 软件工程师证书", "languageSkill": "良好(日常交流)", "workExperience": "3-5年", "familyAccompany": "不需要", "jobStatus": "观望中"}'::jsonb,
-                CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP - INTERVAL '1 day'
-     ) AS t(user_id, title, type, destination, status, form_data, created_at, updated_at)
-WHERE user_id IS NOT NULL
-ON CONFLICT DO NOTHING
-RETURNING id, title;
-
--- 9. 插入阶段数据（针对赴美读研规划）
-INSERT INTO tb_plan_phases (plan_id, title, description, sort_order, created_at)
-SELECT plan_id, title, description, sort_order, created_at
-FROM (
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) as plan_id,
-                '选校定位' as title, '确定目标院校和专业' as description, 1 as sort_order,
-                CURRENT_TIMESTAMP - INTERVAL '2 days' as created_at, CURRENT_TIMESTAMP - INTERVAL '2 days' as updated_at
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '语言考试', '准备并完成语言考试', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '申请材料准备', '准备各项申请材料', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '提交申请', '完成院校申请', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '等待offer', '等待录取结果', 5, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '签证办理', '办理学生签证', 6, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1), '行前准备', '出发前的准备工作', 7, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-     ) AS t(plan_id, title, description, sort_order, created_at, updated_at)
-WHERE plan_id IS NOT NULL
+-- -------------------------------------------------------
+-- 13. 插入资源类别初始数据
+-- -------------------------------------------------------
+INSERT INTO tb_resource_category (name, icon, color, sort_order) VALUES
+                                                                     ('实用工具', 'Smartphone', '#6B7280', 0),
+                                                                     ('签证办理', 'ShieldAlert', '#3B82F6', 1),
+                                                                     ('酒店住宿', 'Hotel',       '#8B5CF6', 2),
+                                                                     ('交通出行', 'Car',         '#10B981', 3),
+                                                                     ('餐饮美食', 'Utensils',    '#EF4444', 4),
+                                                                     ('线上购物', 'ShoppingBag',  '#F59E0B', 5)
 ON CONFLICT DO NOTHING;
 
--- 10. 插入任务数据
-INSERT INTO tb_plan_tasks (phase_id, title, description, is_completed, ai_suggestion, sort_order, created_at)
-SELECT phase_id, title, description, is_completed, ai_suggestion, sort_order, created_at
-FROM (
-         -- 选校定位阶段任务
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '选校定位' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1) as phase_id,
-                '确定留学专业方向' as title,
-                '明确想申请的计算机科学专业方向' as description,
-                true as is_completed,
-                '建议提前了解各校 CS 项目的特色，如 AI、ML、Systems 等方向' as ai_suggestion,
-                1 as sort_order,
-                CURRENT_TIMESTAMP - INTERVAL '2 days' as created_at,
-                CURRENT_TIMESTAMP - INTERVAL '2 days' as updated_at
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '选校定位' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '收集目标院校信息', '了解各校的排名、录取要求、学费等', true, '重点关注 US News 排名靠前的 CS 项目', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '选校定位' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '评估自身背景与院校匹配度', '根据 GPA、科研、实习等评估录取可能性', false, '建议使用 Stanford、MIT、CMU 等作为冲刺院校', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '选校定位' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '确定申请院校 List', '列出冲刺、稳妥、保底院校', false, '建议 3-4 所冲刺，3-4 所稳妥，2-3 所保底', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 语言考试阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '语言考试' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '确定目标院校语言要求', '了解各校的语言成绩要求', false, '顶尖 CS 项目一般要求雅思 7.0 或托福 100+', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '语言考试' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '报名语言考试', '报名雅思或托福考试', false, '建议提前 2-3 个月报名，旺季可能满位', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '语言考试' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '制定备考计划', '安排每天的备考时间', false, '建议每天保证 2-3 小时的有效学习时间', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '语言考试' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '参加考试并达到目标分数', '完成考试并获得合格成绩', false, '建议预留 2 次考试机会', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 申请材料准备阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '申请材料准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '开具成绩单和在读证明', '准备中英文成绩单和在读证明', false, '建议一次性开具 10 份左右备用', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '申请材料准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '撰写个人陈述(PS)', '完成个人陈述的撰写和修改', false, 'PS 是申请中最关键的材料，建议提前 1 个月开始准备', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '申请材料准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '准备推荐信', '联系推荐人并准备推荐信', false, '建议找了解你的教授或实习导师', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '申请材料准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '制作简历(CV)', '准备英文简历', false, '控制在一页以内，突出科研和项目经验', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 提交申请阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '提交申请' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '注册院校申请账号', '在各校申请系统注册账号', false, '建议使用专门邮箱管理申请', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '提交申请' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '填写申请表', '完成各校的申请表填写', false, '注意各校截止日期，建议提前一周提交', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '提交申请' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '上传申请材料', '上传成绩单、PS、CV 等材料', false, '确保文件格式和大小符合要求', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '提交申请' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '缴纳申请费用', '支付各校申请费', false, '每所学校 50-150 美元不等', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 等待 offer 阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '等待offer' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '跟进申请状态', '定期查看申请状态', false, '部分学校会发面试邀请', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '等待offer' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '收到offer后确认入读', '在截止日期前确认入读学校', false, '注意各校 deposit 截止日期', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '等待offer' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '缴纳定金/占位费', '向确认入读的學校缴纳定金', false, '定金一般为 100-1000 美元', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 签证办理阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '签证办理' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '准备签证材料', '准备 I-20、护照、签证照片等', false, '需要提供资金证明', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '签证办理' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '预约签证面签', '预约美国大使馆面签时间', false, '建议提前 1-2 个月预约', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '签证办理' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '参加面签', '前往大使馆参加签证面谈', false, '提前准备好常见问题答案', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '签证办理' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '获得签证', '领取护照和签证', false, '一般 3-5 个工作日出签', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         -- 行前准备阶段任务
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '行前准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '申请住宿', '申请学校宿舍或校外租房', false, '建议提前 2-3 个月开始申请宿舍', 1, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '行前准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '购买机票', '预订赴美机票', false, '建议提前 1-2 个月购买', 2, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '行前准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '购买保险', '购买国际学生医疗保险', false, '学校通常会提供保险选项', 3, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '行前准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '体检', '完成出境体检和疫苗接种', false, '部分学校要求特定疫苗', 4, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-         UNION ALL
-         SELECT (SELECT id FROM tb_plan_phases WHERE title = '行前准备' AND plan_id = (SELECT id FROM tb_plans WHERE title = '赴美读研规划' LIMIT 1) LIMIT 1),
-                '准备行李', '整理赴美行李', false, '提前了解航空公司行李规定', 5, CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days'
-     ) AS t(phase_id, title, description, is_completed, ai_suggestion, sort_order, created_at, updated_at)
-WHERE phase_id IS NOT NULL
+-- 强制设置自增序列起始值（确保实用工具 ID=999 不与后续冲突）
+SELECT setval('tb_resource_category_id_seq', 1000);
+
+-- -------------------------------------------------------
+-- 14. 插入实用工具 App 初始数据（country = "全球"）
+-- -------------------------------------------------------
+INSERT INTO tb_resource (country, category_id, title, description, url, web_url, logo, image_url, is_featured, meta, sort_order) VALUES
+                                                                                                                                     (
+                                                                                                                                         '全球',
+                                                                                                                                         (SELECT id FROM tb_resource_category WHERE name = '实用工具' LIMIT 1),
+                                                                                                                                         '极简汇率',
+                                                                                                                                         '简洁高效的汇率换算，多币种实时对照，出国消费心中有数。',
+                                                                                                                                         'xcurrency0appsflyer://',
+                                                                                                                                         'https://xcurrency.com/',
+                                                                                                                                         'https://play-lh.googleusercontent.com/6_vMtF4gG-fbe1Ir2RGvFQ0l42QWDUOeA6eb9yjtFsEYZ-8xDYLgUTuLHvJZpAt_8lMz=w240-h480-rw',
+                                                                                                                                         '',
+                                                                                                                                         TRUE,
+                                                                                                                                         '{"highlights": ["支持全球主流货币换算", "查看历史走势辅助决策"]}'::jsonb,
+                                                                                                                                         1
+                                                                                                                                     ),
+                                                                                                                                     (
+                                                                                                                                         '全球',
+                                                                                                                                         (SELECT id FROM tb_resource_category WHERE name = '实用工具' LIMIT 1),
+                                                                                                                                         'Google 翻译',
+                                                                                                                                         '百余种语言互译，拍照、语音、对话模式覆盖旅途沟通场景。',
+                                                                                                                                         'googletranslate://',
+                                                                                                                                         'https://translate.google.com',
+                                                                                                                                         'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Google_Translate_logo.svg/960px-Google_Translate_logo.svg.png?_=20210606111727',
+                                                                                                                                         '',
+                                                                                                                                         TRUE,
+                                                                                                                                         '{"highlights": ["拍照翻译菜单与路牌", "可下载离线语言包"], "cta": "打开应用"}'::jsonb,
+                                                                                                                                         2
+                                                                                                                                     ),
+                                                                                                                                     (
+                                                                                                                                         '全球',
+                                                                                                                                         (SELECT id FROM tb_resource_category WHERE name = '实用工具' LIMIT 1),
+                                                                                                                                         'Google 地图',
+                                                                                                                                         '步行、驾车与公共交通路线规划，离线地图与收藏地点随时可用。',
+                                                                                                                                         'comgooglemaps://',
+                                                                                                                                         'https://www.google.com/maps',
+                                                                                                                                         'https://logores.yrucd.com/wp-content/uploads/2023/08/Google_Maps_logo_PNG4.png!a',
+                                                                                                                                         '',
+                                                                                                                                         TRUE,
+                                                                                                                                         '{"highlights": ["实时路况与预计到达时间", "下载区域离线包省流量"], "cta": "打开应用"}'::jsonb,
+                                                                                                                                         3
+                                                                                                                                     )
 ON CONFLICT DO NOTHING;
 
--- 验证Plan模块数据
-SELECT '规划表' as table_name, COUNT(*) as count FROM tb_plans
-UNION ALL
-SELECT '阶段表', COUNT(*) FROM tb_plan_phases
-UNION ALL
-SELECT '任务表', COUNT(*) FROM tb_plan_tasks;
