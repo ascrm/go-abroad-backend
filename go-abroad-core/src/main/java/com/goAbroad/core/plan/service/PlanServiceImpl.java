@@ -222,4 +222,10 @@ public class PlanServiceImpl {
             });
         }
     }
+
+    public PlanResponse getGeneratingPlan(Long userId) {
+        return planRepository.findByUserIdAndStatus(userId, PlanStatus.generating)
+                .map(planMapper::toResponse)
+                .orElse(null);
+    }
 }

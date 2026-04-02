@@ -94,4 +94,12 @@ public class PlanController {
         planService.reorderPhases(userId, planId, request);
         return R.ok();
     }
+
+    /**** 获取正在生成的规划 ****/
+    @GetMapping("/generating")
+    public R<PlanResponse> getGeneratingPlan() {
+        Long userId = UserHolder.getUserId();
+        PlanResponse result = planService.getGeneratingPlan(userId);
+        return R.ok(result);
+    }
 }
