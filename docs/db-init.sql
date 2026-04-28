@@ -1,282 +1,396 @@
--- ============================================
--- 用户认证模块数据库初始化脚本 (PostgreSQL)
--- ============================================
-
--- 1. 用户表 - 存储用户基本信息
-CREATE TABLE IF NOT EXISTS "tb_user" (
-                                         id              BIGSERIAL PRIMARY KEY,
-                                         username        VARCHAR(50) UNIQUE,          -- 用户名
-                                         nickname        VARCHAR(100),               -- 昵称
-                                         avatar          VARCHAR(500),               -- 头像URL
-                                         gender          SMALLINT DEFAULT 0,        -- 性别: 0-未知, 1-男, 2-女
-                                         birthday        DATE,                       -- 生日
-                                         bio             VARCHAR(500),               -- 个人简介
-                                         status          SMALLINT DEFAULT 1,         -- 状态: 0-禁用, 1-正常
-                                         created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                         updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create table tb_user
+(
+    id         bigserial
+        primary key,
+    username   varchar(50)
+        unique,
+    nickname   varchar(100),
+    avatar     varchar(500),
+    gender     integer   default 0,
+    birthday   date,
+    bio        varchar(500),
+    status     integer   default 1,
+    created_at timestamp default CURRENT_TIMESTAMP,
+    updated_at timestamp default CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE "tb_user" IS '用户表';
-COMMENT ON COLUMN "tb_user".gender IS '性别: 0-未知, 1-男, 2-女';
-COMMENT ON COLUMN "tb_user".status IS '状态: 0-禁用, 1-正常';
+comment on table tb_user is '用户表';
 
--- 2. 账号表 - 登录凭证（支持用户名、邮箱、手机号登录）
-CREATE TABLE IF NOT EXISTS tb_user_account (
-                                               id              BIGSERIAL PRIMARY KEY,
-                                               user_id         BIGINT NOT NULL REFERENCES "tb_user"(id) ON DELETE CASCADE,
-                                               account_type    SMALLINT NOT NULL,          -- 账号类型: 1-用户名, 2-邮箱, 3-手机号
-                                               account_value   VARCHAR(100) NOT NULL,      -- 账号值（用户名/邮箱/手机号）
-                                               password        VARCHAR(255),               -- 密码（第三方登录时为空）
-                                               salt            VARCHAR(50),                -- 盐值
-                                               verified        BOOLEAN DEFAULT FALSE,      -- 是否验证
-                                               created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                               updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                               UNIQUE(account_type, account_value)
+comment on column tb_user.gender is '性别: 0-未知, 1-男, 2-女';
+
+comment on column tb_user.status is '状态: 0-禁用, 1-正常';
+
+alter table tb_user
+    owner to root;
+
+create table tb_user_account
+(
+    id            bigserial
+        primary key,
+    user_id       bigint       not null
+        references tb_user
+            on delete cascade,
+    account_type  integer      not null,
+    account_value varchar(100) not null,
+    password      varchar(255),
+    salt          varchar(50),
+    verified      boolean   default false,
+    created_at    timestamp default CURRENT_TIMESTAMP,
+    updated_at    timestamp default CURRENT_TIMESTAMP,
+    unique (account_type, account_value),
+    constraint uk3r7eb2sdn2rc8s777rj4li7r6
+        unique (account_type, account_value)
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_account_user_id ON tb_user_account(user_id);
+comment on table tb_user_account is '账号表';
 
-COMMENT ON TABLE tb_user_account IS '账号表';
-COMMENT ON COLUMN tb_user_account.account_type IS '账号类型: 1-用户名, 2-邮箱, 3-手机号';
+comment on column tb_user_account.account_type is '账号类型: 1-用户名, 2-邮箱, 3-手机号';
 
--- 3. 第三方登录表 - 存储第三方登录信息
-CREATE TABLE IF NOT EXISTS tb_user_social (
-                                              id              BIGSERIAL PRIMARY KEY,
-                                              user_id         BIGINT NOT NULL REFERENCES "tb_user"(id) ON DELETE CASCADE,
-                                              social_type     SMALLINT NOT NULL,          -- 平台类型: 1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音
-                                              openid          VARCHAR(100) NOT NULL,      -- 第三方平台openid
-                                              unionid         VARCHAR(100),               -- 微信/QQ unionid
-                                              access_token    VARCHAR(500),               -- 访问令牌
-                                              refresh_token   VARCHAR(500),               -- 刷新令牌
-                                              expires_at      TIMESTAMP,                  -- 令牌过期时间
-                                              created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                              updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                              UNIQUE(social_type, openid)
+alter table tb_user_account
+    owner to root;
+
+create index idx_user_account_user_id
+    on tb_user_account (user_id);
+
+create index idx16srcgnlhli5gqso04sqf5ygr
+    on tb_user_account (user_id);
+
+create table tb_user_social
+(
+    id            bigserial
+        primary key,
+    user_id       bigint       not null
+        references tb_user
+            on delete cascade,
+    social_type   integer      not null,
+    openid        varchar(100) not null,
+    unionid       varchar(100),
+    access_token  varchar(500),
+    refresh_token varchar(500),
+    expires_at    timestamp,
+    created_at    timestamp default CURRENT_TIMESTAMP,
+    updated_at    timestamp default CURRENT_TIMESTAMP,
+    unique (social_type, openid),
+    constraint ukfwkt048vx1dogygb9j4vqqsrm
+        unique (social_type, openid)
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_social_user_id ON tb_user_social(user_id);
+comment on table tb_user_social is '第三方登录表';
 
-COMMENT ON TABLE tb_user_social IS '第三方登录表';
-COMMENT ON COLUMN tb_user_social.social_type IS '平台类型: 1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音';
+comment on column tb_user_social.social_type is '平台类型: 1-微信, 2-QQ, 3-Google, 4-Apple, 5-抖音';
 
+alter table tb_user_social
+    owner to root;
 
+create index idx_user_social_user_id
+    on tb_user_social (user_id);
 
---------------------- community部分的所有表 ----------------------------------
+create index idxqag34y3vcui2n7nv4trpmr30
+    on tb_user_social (user_id);
 
-
--- ============================================
--- 推荐文章表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_articles (
-                                           id BIGSERIAL PRIMARY KEY,
-                                           title VARCHAR(200) NOT NULL,
-                                           description TEXT,
-                                           content TEXT NOT NULL,
-                                           image VARCHAR(500),
-                                           tag VARCHAR(50),
-                                           author_id BIGINT REFERENCES tb_user(id),
-                                           views INT DEFAULT 0,
-                                           favorites INT DEFAULT 0,
-                                           is_published BOOLEAN DEFAULT true,
-                                           is_featured BOOLEAN DEFAULT false,
-                                           published_at TIMESTAMP WITH TIME ZONE,
-                                           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create table tb_articles
+(
+    id           bigserial
+        primary key,
+    title        varchar(200) not null,
+    description  text,
+    content      text         not null,
+    image        varchar(500),
+    tag          varchar(50),
+    author_id    bigint
+        references tb_user,
+    views        integer                  default 0,
+    favorites    integer                  default 0,
+    is_published boolean                  default true,
+    is_featured  boolean                  default false,
+    published_at timestamp with time zone,
+    created_at   timestamp with time zone default CURRENT_TIMESTAMP,
+    updated_at   timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_articles_published ON tb_articles(is_published, published_at);
-CREATE INDEX idx_articles_featured ON tb_articles(is_featured);
+alter table tb_articles
+    owner to root;
 
--- ============================================
--- 问答问题表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_questions (
-                                            id BIGSERIAL PRIMARY KEY,
-                                            title VARCHAR(200) NOT NULL,
-                                            content TEXT NOT NULL,
-                                            author_id BIGINT REFERENCES tb_user(id),
-                                            category VARCHAR(50),
-                                            views INT DEFAULT 0,
-                                            replies_count INT DEFAULT 0,
-                                            is_resolved BOOLEAN DEFAULT false,
-                                            is_deleted BOOLEAN DEFAULT false,
-                                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create index idx_articles_published
+    on tb_articles (is_published, published_at);
+
+create index idx_articles_featured
+    on tb_articles (is_featured);
+
+create table tb_questions
+(
+    id            bigserial
+        primary key,
+    title         varchar(200) not null,
+    content       text         not null,
+    author_id     bigint
+        references tb_user,
+    category      varchar(50),
+    views         integer                  default 0,
+    replies_count integer                  default 0,
+    is_resolved   boolean                  default false,
+    is_deleted    boolean                  default false,
+    created_at    timestamp with time zone default CURRENT_TIMESTAMP,
+    updated_at    timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_questions_author ON tb_questions(author_id);
-CREATE INDEX idx_questions_category ON tb_questions(category);
-CREATE INDEX idx_questions_resolved ON tb_questions(is_resolved);
+alter table tb_questions
+    owner to root;
 
--- ============================================
--- 问答回答表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_answers (
-                                          id BIGSERIAL PRIMARY KEY,
-                                          question_id BIGINT NOT NULL REFERENCES tb_questions(id) ON DELETE CASCADE,
-                                          author_id BIGINT REFERENCES tb_user(id),
-                                          content TEXT NOT NULL,
-                                          likes INT DEFAULT 0,
-                                          replies_count INT DEFAULT 0,
-                                          is_official BOOLEAN DEFAULT false,
-                                          is_best_answer BOOLEAN DEFAULT false,
-                                          is_deleted BOOLEAN DEFAULT false,
-                                          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create index idx_questions_author
+    on tb_questions (author_id);
+
+create index idx_questions_category
+    on tb_questions (category);
+
+create index idx_questions_resolved
+    on tb_questions (is_resolved);
+
+create table tb_answers
+(
+    id             bigserial
+        primary key,
+    question_id    bigint not null
+        references tb_questions
+            on delete cascade,
+    author_id      bigint
+        references tb_user,
+    content        text   not null,
+    likes          integer                  default 0,
+    replies_count  integer                  default 0,
+    is_official    boolean                  default false,
+    is_best_answer boolean                  default false,
+    is_deleted     boolean                  default false,
+    created_at     timestamp with time zone default CURRENT_TIMESTAMP,
+    updated_at     timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_answers_question ON tb_answers(question_id);
-CREATE INDEX idx_answers_author ON tb_answers(author_id);
-CREATE INDEX idx_answers_official ON tb_answers(is_official);
+alter table tb_answers
+    owner to root;
 
--- ============================================
--- 互动表（合并收藏、点赞、关注）
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_interactions (
-                                               id BIGSERIAL PRIMARY KEY,
-                                               user_id BIGINT NOT NULL REFERENCES tb_user(id) ON DELETE CASCADE,
-                                               target_id BIGINT NOT NULL,
-                                               target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('article', 'question', 'answer')),
-                                               action VARCHAR(20) NOT NULL CHECK (action IN ('favorite', 'like', 'follow', 'view')),
-                                               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                               UNIQUE(user_id, target_id, target_type, action)
+create index idx_answers_question
+    on tb_answers (question_id);
+
+create index idx_answers_author
+    on tb_answers (author_id);
+
+create index idx_answers_official
+    on tb_answers (is_official);
+
+create table tb_interactions
+(
+    id          bigserial
+        primary key,
+    user_id     bigint      not null
+        references tb_user
+            on delete cascade,
+    target_id   bigint      not null,
+    target_type varchar(20) not null
+        constraint tb_interactions_target_type_check
+            check ((target_type)::text = ANY
+                   ((ARRAY ['article'::character varying, 'question'::character varying, 'answer'::character varying])::text[])),
+    action      varchar(20) not null
+        constraint tb_interactions_action_check
+            check ((action)::text = ANY
+                   ((ARRAY ['favorite'::character varying, 'like'::character varying, 'follow'::character varying, 'view'::character varying])::text[])),
+    created_at  timestamp with time zone default CURRENT_TIMESTAMP,
+    unique (user_id, target_id, target_type, action),
+    constraint uk_user_target_type_action
+        unique (user_id, target_id, target_type, action)
 );
 
-CREATE INDEX idx_interactions_user ON tb_interactions(user_id, action);
-CREATE INDEX idx_interactions_target ON tb_interactions(target_id, target_type);
+alter table tb_interactions
+    owner to root;
 
+create index idx_interactions_user
+    on tb_interactions (user_id, action);
 
+create index idx_interactions_target
+    on tb_interactions (target_id, target_type);
 
--- ================== plan模块内容 =============================
-
--- ============================================
--- 用户规划表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_plans (
-                                        id BIGSERIAL PRIMARY KEY,
-                                        user_id BIGINT NOT NULL REFERENCES tb_user(id) ON DELETE CASCADE,
-                                        title VARCHAR(200) NOT NULL,
-                                        type VARCHAR(20) NOT NULL CHECK (type IN ('tourism', 'study', 'work', 'immigration')),
-                                        destination JSONB,
-                                        status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'generating', 'completed', 'archived')),
-                                        form_data JSONB,
-                                        cover_image VARCHAR(500),
-                                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create table tb_plans
+(
+    id          bigserial
+        primary key,
+    user_id     bigint       not null
+        references tb_user
+            on delete cascade,
+    title       varchar(200) not null,
+    type        varchar(20)  not null
+        constraint tb_plans_type_check
+            check ((type)::text = ANY
+                   ((ARRAY ['tourism'::character varying, 'study'::character varying, 'work'::character varying, 'immigration'::character varying])::text[])),
+    destination jsonb,
+    status      varchar(20)              default 'generating'::character varying
+        constraint tb_plans_status_check
+            check ((status)::text = ANY
+                   ((ARRAY ['draft'::character varying, 'generating'::character varying, 'completed'::character varying, 'archived'::character varying])::text[])),
+    form_data   jsonb,
+    cover_image varchar(500),
+    created_at  timestamp with time zone default CURRENT_TIMESTAMP,
+    updated_at  timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_tb_plans_user ON tb_plans(user_id);
-CREATE INDEX idx_tb_plans_type ON tb_plans(type);
-CREATE INDEX idx_tb_plans_status ON tb_plans(status);
+alter table tb_plans
+    owner to root;
 
--- ============================================
--- 规划阶段表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_plan_phases (
-                                              id BIGSERIAL PRIMARY KEY,
-                                              plan_id BIGINT NOT NULL REFERENCES tb_plans(id) ON DELETE CASCADE,
-                                              title VARCHAR(100) NOT NULL,
-                                              description TEXT,
-                                              sort_order INT DEFAULT 0,
-                                              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create index idx_tb_plans_user
+    on tb_plans (user_id);
+
+create index idx_tb_plans_type
+    on tb_plans (type);
+
+create index idx_tb_plans_status
+    on tb_plans (status);
+
+create table tb_plan_phases
+(
+    id          bigserial
+        primary key,
+    plan_id     bigint       not null
+        references tb_plans
+            on delete cascade,
+    title       varchar(100) not null,
+    description text,
+    sort_order  integer                  default 0,
+    created_at  timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_tb_plan_phases_plan ON tb_plan_phases(plan_id);
+alter table tb_plan_phases
+    owner to root;
 
--- ============================================
--- 规划任务表
--- ============================================
-CREATE TABLE IF NOT EXISTS tb_plan_tasks (
-                                             id BIGSERIAL PRIMARY KEY,
-                                             phase_id BIGINT NOT NULL REFERENCES tb_plan_phases(id) ON DELETE CASCADE,
-                                             title VARCHAR(200) NOT NULL,
-                                             description TEXT,
-                                             ai_suggestion TEXT,
-                                             quick_links JSONB,
-                                             is_completed BOOLEAN DEFAULT false,
-                                             completed_at TIMESTAMP WITH TIME ZONE,
-                                             sort_order INT DEFAULT 0,
-                                             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+create index idx_tb_plan_phases_plan
+    on tb_plan_phases (plan_id);
+
+create table tb_plan_tasks
+(
+    id            bigserial
+        primary key,
+    phase_id      bigint       not null
+        references tb_plan_phases
+            on delete cascade,
+    title         varchar(200) not null,
+    description   text,
+    ai_suggestion text,
+    quick_links   jsonb,
+    is_completed  boolean                  default false,
+    completed_at  timestamp with time zone,
+    sort_order    integer                  default 0,
+    created_at    timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_tb_plan_tasks_phase ON tb_plan_tasks(phase_id);
+alter table tb_plan_tasks
+    owner to root;
 
+create index idx_tb_plan_tasks_phase
+    on tb_plan_tasks (phase_id);
 
--- ============================================
--- Resources 模块表结构与初始数据
--- ============================================
-
--- -------------------------------------------------------
--- 11. 资源类别表 tb_resource_category
--- 用途：存储出境资源分类，如签证办理、酒店住宿等
--- -------------------------------------------------------
-CREATE TABLE IF NOT EXISTS tb_resource_category (
-                                                    id          BIGSERIAL   PRIMARY KEY,
-                                                    name        VARCHAR(50) NOT NULL,                            -- 类别名称，如"签证办理"
-                                                    icon        VARCHAR(50) NOT NULL,                            -- 前端 Lucide 图标名称，如"ShieldAlert"
-                                                    color       VARCHAR(20) NOT NULL,                            -- 类别主题色（十六进制），如"#3B82F6"
-                                                    sort_order  INT         NOT NULL DEFAULT 0,                  -- 展示顺序，数值越小排越前
-                                                    is_active   BOOLEAN     NOT NULL DEFAULT TRUE,              -- 是否启用（软删除）
-                                                    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                                    updated_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+create table tb_resource_category
+(
+    id         bigserial
+        primary key,
+    name       varchar(50)                         not null,
+    icon       varchar(50)                         not null,
+    color      varchar(20)                         not null,
+    sort_order integer   default 0                 not null,
+    is_active  boolean   default true              not null,
+    created_at timestamp default CURRENT_TIMESTAMP not null,
+    updated_at timestamp default CURRENT_TIMESTAMP not null
 );
 
-COMMENT ON TABLE tb_resource_category          IS '出境资源分类表，定义签证、酒店、交通等资源类别';
-COMMENT ON COLUMN tb_resource_category.id         IS '类别主键ID';
-COMMENT ON COLUMN tb_resource_category.name        IS '类别名称';
-COMMENT ON COLUMN tb_resource_category.icon        IS '前端Lucide图标组件名';
-COMMENT ON COLUMN tb_resource_category.color      IS '类别主题色（十六进制）';
-COMMENT ON COLUMN tb_resource_category.sort_order  IS '展示顺序';
-COMMENT ON COLUMN tb_resource_category.is_active  IS '是否启用（软删除）';
-COMMENT ON COLUMN tb_resource_category.created_at  IS '创建时间';
-COMMENT ON COLUMN tb_resource_category.updated_at  IS '更新时间';
+comment on table tb_resource_category is '出境资源分类表，定义签证、酒店、交通等资源类别';
 
--- 类别表索引：按展示顺序排序查询
-CREATE INDEX idx_tb_resource_category_sort_order ON tb_resource_category (sort_order);
+comment on column tb_resource_category.id is '类别主键ID';
 
--- -------------------------------------------------------
--- 12. 资源表 tb_resource
--- 用途：存储各国各分类下的具体资源链接，如日本签证办理资源、美国酒店预订平台等
--- -------------------------------------------------------
-CREATE TABLE IF NOT EXISTS tb_resource (
-                                           id            BIGSERIAL   PRIMARY KEY,
-                                           country       VARCHAR(50) NOT NULL,                            -- 国家/地区名称，如"日本"
-                                           category_id   BIGINT      NOT NULL,                             -- 关联 tb_resource_category.id
-                                           title         VARCHAR(200)NOT NULL,                             -- 资源标题，如"日本 e-Visa"
-                                           description   VARCHAR(500)NOT NULL,                             -- 资源简短描述
-                                           url           VARCHAR(500)NOT NULL,                             -- App 深链 URL，如"xcurrency://"
-                                           web_url       VARCHAR(500),                                     -- 降级 Web URL，深链打不开时跳转
-                                           image_url     VARCHAR(500),                                     -- 封面图 URL
-                                           logo          VARCHAR(500),                                     -- App Logo 图标 URL（工具 App 展示用）
-                                           is_featured   BOOLEAN     NOT NULL DEFAULT FALSE,              -- 是否精选（精选资源展示为大卡片）
-                                           meta          JSONB       NOT NULL DEFAULT '{}',               -- 扩展元数据，可存储 highlights 等
-                                           sort_order    INT         NOT NULL DEFAULT 0,                  -- 同类别内的展示顺序
-                                           is_active     BOOLEAN     NOT NULL DEFAULT TRUE,               -- 是否启用（软删除）
-                                           created_at    TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                           updated_at    TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+comment on column tb_resource_category.name is '类别名称';
 
-                                           CONSTRAINT fk_resource_category FOREIGN KEY (category_id) REFERENCES tb_resource_category(id) ON DELETE RESTRICT
+comment on column tb_resource_category.icon is '前端Lucide图标组件名';
+
+comment on column tb_resource_category.color is '类别主题色（十六进制）';
+
+comment on column tb_resource_category.sort_order is '展示顺序';
+
+comment on column tb_resource_category.is_active is '是否启用（软删除）';
+
+comment on column tb_resource_category.created_at is '创建时间';
+
+comment on column tb_resource_category.updated_at is '更新时间';
+
+alter table tb_resource_category
+    owner to root;
+
+create index idx_tb_resource_category_sort_order
+    on tb_resource_category (sort_order);
+
+create table tb_resource
+(
+    id          bigserial
+        primary key,
+    country     varchar(50)                         not null,
+    category_id bigint                              not null
+        constraint fk_resource_category
+            references tb_resource_category
+            on delete restrict,
+    title       varchar(200)                        not null,
+    description varchar(500)                        not null,
+    url         varchar(500)                        not null,
+    web_url     varchar(500),
+    image_url   varchar(500),
+    logo        varchar(500),
+    is_featured boolean   default false             not null,
+    meta        jsonb     default '{}'::jsonb       not null,
+    sort_order  integer   default 0                 not null,
+    is_active   boolean   default true              not null,
+    created_at  timestamp default CURRENT_TIMESTAMP not null,
+    updated_at  timestamp default CURRENT_TIMESTAMP not null
 );
 
-COMMENT ON TABLE tb_resource               IS '出境资源表，存储各国分类下的具体资源链接信息';
-COMMENT ON COLUMN tb_resource.id           IS '资源主键ID';
-COMMENT ON COLUMN tb_resource.country       IS '国家/地区名称';
-COMMENT ON COLUMN tb_resource.category_id  IS '关联的资源类别ID';
-COMMENT ON COLUMN tb_resource.title        IS '资源标题';
-COMMENT ON COLUMN tb_resource.description  IS '资源简短描述';
-COMMENT ON COLUMN tb_resource.url          IS 'App深链URL';
-COMMENT ON COLUMN tb_resource.web_url      IS '降级Web URL（深链不可用时跳转）';
-COMMENT ON COLUMN tb_resource.image_url    IS '封面图片URL';
-COMMENT ON COLUMN tb_resource.is_featured  IS '是否精选（精选资源展示为大卡片）';
-COMMENT ON COLUMN tb_resource.meta          IS '扩展元数据（JSON），可存highlights、cta等';
-COMMENT ON COLUMN tb_resource.sort_order   IS '同类别内的展示顺序';
-COMMENT ON COLUMN tb_resource.is_active     IS '是否启用（软删除）';
-COMMENT ON COLUMN tb_resource.created_at    IS '创建时间';
-COMMENT ON COLUMN tb_resource.updated_at    IS '更新时间';
+comment on table tb_resource is '出境资源表，存储各国分类下的具体资源链接信息';
 
--- 资源表索引优化
-CREATE INDEX idx_tb_resource_country       ON tb_resource (country);                       -- 按国家查询
-CREATE INDEX idx_tb_resource_category_id  ON tb_resource (category_id);                   -- 按类别查询
-CREATE INDEX idx_tb_resource_country_category ON tb_resource (country, category_id);        -- 国家+类别联合查询（最常用查询路径）
-CREATE INDEX idx_tb_resource_featured      ON tb_resource (is_featured) WHERE is_featured = TRUE; -- 精选资源快速筛选
-CREATE INDEX idx_tb_resource_meta_gin      ON tb_resource USING GIN (meta);                 -- JSONB 元数字段全文检索
+comment on column tb_resource.id is '资源主键ID';
+
+comment on column tb_resource.country is '国家/地区名称';
+
+comment on column tb_resource.category_id is '关联的资源类别ID';
+
+comment on column tb_resource.title is '资源标题';
+
+comment on column tb_resource.description is '资源简短描述';
+
+comment on column tb_resource.url is 'App深链URL';
+
+comment on column tb_resource.web_url is '降级Web URL（深链不可用时跳转）';
+
+comment on column tb_resource.image_url is '封面图片URL';
+
+comment on column tb_resource.is_featured is '是否精选（精选资源展示为大卡片）';
+
+comment on column tb_resource.meta is '扩展元数据（JSON），可存highlights、cta等';
+
+comment on column tb_resource.sort_order is '同类别内的展示顺序';
+
+comment on column tb_resource.is_active is '是否启用（软删除）';
+
+comment on column tb_resource.created_at is '创建时间';
+
+comment on column tb_resource.updated_at is '更新时间';
+
+alter table tb_resource
+    owner to root;
+
+create index idx_tb_resource_country
+    on tb_resource (country);
+
+create index idx_tb_resource_category_id
+    on tb_resource (category_id);
+
+create index idx_tb_resource_country_category
+    on tb_resource (country, category_id);
+
+create index idx_tb_resource_featured
+    on tb_resource (is_featured)
+    where (is_featured = true);
+
+create index idx_tb_resource_meta_gin
+    on tb_resource using gin (meta);
+
