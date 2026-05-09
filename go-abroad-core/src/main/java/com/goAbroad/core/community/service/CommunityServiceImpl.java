@@ -34,12 +34,12 @@ public class CommunityServiceImpl {
 
     private final CommunityMapper communityMapper;
 
-    public PageR<ArticleResponse> getArticleList(String tag, Boolean isFeatured, Integer page, Integer pageSize) {
+    public PageR<ArticleResponse> getArticleList(Long userId, String tag, Boolean isFeatured, Integer page, Integer pageSize) {
         Page<Article> articlePage = articleRepository.findByCondition(tag, isFeatured, PageRequest.of(page - 1, pageSize));
         List<Article> articles = articlePage.getContent();
 
         List<ArticleResponse> list = articles.stream()
-                .map(communityMapper::toArticleResponse)
+                .map(article -> toArticleResponse(article, userId))
                 .collect(Collectors.toList());
 
         return PageR.ok(articlePage.getTotalElements(), list, page, pageSize);
@@ -98,12 +98,12 @@ public class CommunityServiceImpl {
         articleRepository.deleteById(id);
     }
 
-    public PageR<QuestionResponse> getQuestionList(String category, Boolean isResolved, Integer page, Integer pageSize) {
+    public PageR<QuestionResponse> getQuestionList(Long userId, String category, Boolean isResolved, Integer page, Integer pageSize) {
         Page<Question> questionPage = questionRepository.findByCondition(category, isResolved, PageRequest.of(page - 1, pageSize));
         List<Question> questions = questionPage.getContent();
 
         List<QuestionResponse> list = questions.stream()
-                .map(communityMapper::toQuestionResponse)
+                .map(question -> toQuestionResponse(question, userId))
                 .collect(Collectors.toList());
 
         return PageR.ok(questionPage.getTotalElements(), list, page, pageSize);
@@ -237,6 +237,8 @@ public class CommunityServiceImpl {
 
         if (existing.isPresent()) {
             interactionRepository.deleteByUserIdAndTargetIdAndTargetTypeAndAction(userId, request.getTargetId(), targetType, Interaction.Action.favorite);
+            // 取消收藏，减少计数
+            updateFavoritesCount(request.getTargetType(), request.getTargetId(), -1);
             return InteractionResponse.builder()
                     .success(true)
                     .action("favorite")
@@ -251,6 +253,8 @@ public class CommunityServiceImpl {
                 .action(Interaction.Action.favorite)
                 .build();
         interactionRepository.save(interaction);
+        // 添加收藏，增加计数
+        updateFavoritesCount(request.getTargetType(), request.getTargetId(), 1);
 
         return InteractionResponse.builder()
                 .success(true)
@@ -340,7 +344,7 @@ public class CommunityServiceImpl {
             case "answer":
                 Answer answer = answerRepository.findById(targetId).orElse(null);
                 if (answer != null) {
-                    answer.setLikes(answer.getLikes() + 1);
+                    answer.setViews(answer.getViews() + 1);
                     answerRepository.save(answer);
                 }
                 break;
@@ -412,5 +416,24 @@ public class CommunityServiceImpl {
         Interaction.TargetType type = Interaction.TargetType.valueOf(targetType);
         Optional<Interaction> interaction = interactionRepository.findOne(userId, targetId, type, Interaction.Action.like);
         return interaction.isPresent();
+    }
+
+    private void updateFavoritesCount(String targetType, Long targetId, int delta) {
+        switch (targetType) {
+            case "article":
+                Article article = articleRepository.findById(targetId).orElse(null);
+                if (article != null) {
+                    article.setFavorites(Math.max(0, article.getFavorites() + delta));
+                    articleRepository.save(article);
+                }
+                break;
+            case "question":
+                Question question = questionRepository.findById(targetId).orElse(null);
+                if (question != null) {
+                    question.setFavorites(Math.max(0, question.getFavorites() + delta));
+                    questionRepository.save(question);
+                }
+                break;
+        }
     }
 }

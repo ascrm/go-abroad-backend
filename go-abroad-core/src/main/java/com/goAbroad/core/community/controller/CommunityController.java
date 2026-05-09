@@ -21,7 +21,8 @@ public class CommunityController {
             @RequestParam(required = false) Boolean isFeatured,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        PageR<ArticleResponse> result = communityService.getArticleList(tag, isFeatured, page, pageSize);
+        Long userId = UserHolder.getUserId();
+        PageR<ArticleResponse> result = communityService.getArticleList(userId, tag, isFeatured, page, pageSize);
         return R.ok(result);
     }
 
@@ -59,7 +60,8 @@ public class CommunityController {
             @RequestParam(required = false) Boolean isResolved,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        PageR<QuestionResponse> result = communityService.getQuestionList(category, isResolved, page, pageSize);
+        Long userId = UserHolder.getUserId();
+        PageR<QuestionResponse> result = communityService.getQuestionList(userId, category, isResolved, page, pageSize);
         return R.ok(result);
     }
 

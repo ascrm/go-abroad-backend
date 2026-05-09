@@ -87,6 +87,8 @@ app:
     endpoint: dypnsapi.aliyuncs.com
     signature: ${app.sms.signature}
     template-code: ${app.sms.template-code}
+    access-key-id: ${app.sms.access-key-id}
+    access-key-secret: ${app.sms.access-key-secret}
 
   # 第三方登录配置
   social:

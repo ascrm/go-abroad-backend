@@ -35,6 +35,10 @@ public class Question {
     @Column(columnDefinition = "INT DEFAULT 0")
     private Integer views = 0;
 
+    @Column(columnDefinition = "INT DEFAULT 0")
+    @Builder.Default
+    private Integer favorites = 0;
+
     @Column(name = "replies_count", columnDefinition = "INT DEFAULT 0")
     private Integer repliesCount = 0;
 

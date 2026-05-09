@@ -13,10 +13,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * JWT 认证过滤器
@@ -29,12 +31,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsServiceImpl userDetailsService;
 
+    private static final List<String> WHITE_LIST = List.of(
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/auth/refresh",
+            "/api/auth/sendCode",
+            "/api/auth/social/**",
+            "/error"
+    );
+
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
     /**
      * 确保异步派发时也执行过滤器，重新解析 Token
      */
     @Override
     protected boolean shouldNotFilterAsyncDispatch() {
         return false;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return WHITE_LIST.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     @Override
