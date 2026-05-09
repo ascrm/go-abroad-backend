@@ -5,43 +5,40 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * 问答问题表
+ * 回答评论表
  */
 @Entity
-@Table(name = "tb_questions")
+@Table(name = "tb_comments")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Question {
+public class Comment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 200, nullable = false)
-    private String title;
+    @Column(name = "answer_id", nullable = false)
+    private Long answerId;
 
-    @Column(name = "author_id")
-    private Long authorId;
+    @Column(name = "parent_id")
+    private Long parentId;
 
-    @Column(length = 50)
-    private String category;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    @Column(columnDefinition = "INT DEFAULT 0")
-    private Integer views = 0;
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String content;
 
     @Column(columnDefinition = "INT DEFAULT 0")
     @Builder.Default
-    private Integer favorites = 0;
+    private Integer likes = 0;
 
     @Column(name = "replies_count", columnDefinition = "INT DEFAULT 0")
-    private Integer repliesCount = 0;
-
-    @Column(name = "is_resolved")
     @Builder.Default
-    private Boolean isResolved = false;
+    private Integer repliesCount = 0;
 
     @Column(name = "is_deleted")
     @Builder.Default

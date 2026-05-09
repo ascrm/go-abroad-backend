@@ -166,4 +166,30 @@ public class CommunityController {
         InteractionCheckResponse result = communityService.checkInteractionStatus(userId, targetId, targetType);
         return R.ok(result);
     }
+
+    // ==================== 评论相关 ====================
+
+    @GetMapping("/comment/list")
+    public R<PageR<CommentResponse>> getCommentList(
+            @RequestParam Long answerId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Long userId = UserHolder.getUserId();
+        PageR<CommentResponse> result = communityService.getCommentList(userId, answerId, page, pageSize);
+        return R.ok(result);
+    }
+
+    @PostMapping("/comment")
+    public R<CommentResponse> createComment(@RequestBody CommentCreateRequest request) {
+        Long userId = UserHolder.getUserId();
+        CommentResponse result = communityService.createComment(userId, request);
+        return R.ok(result);
+    }
+
+    @DeleteMapping("/comment/{id}")
+    public R<Void> deleteComment(@PathVariable Long id) {
+        Long userId = UserHolder.getUserId();
+        communityService.deleteComment(userId, id);
+        return R.ok();
+    }
 }

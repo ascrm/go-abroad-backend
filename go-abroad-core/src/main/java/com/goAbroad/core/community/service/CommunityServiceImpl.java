@@ -1,15 +1,19 @@
 package com.goAbroad.core.community.service;
 
+import com.goAbroad.auth.repository.UserRepository;
 import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.common.result.PageR;
 import com.goAbroad.core.community.dto.*;
 import com.goAbroad.core.community.entity.Article;
 import com.goAbroad.core.community.entity.Answer;
+import com.goAbroad.core.community.entity.Comment;
 import com.goAbroad.core.community.entity.Interaction;
 import com.goAbroad.core.community.entity.Question;
 import com.goAbroad.core.community.mapper.CommunityMapper;
+import com.goAbroad.core.community.mapper.CommentMapper;
 import com.goAbroad.core.community.repository.AnswerRepository;
 import com.goAbroad.core.community.repository.ArticleRepository;
+import com.goAbroad.core.community.repository.CommentRepository;
 import com.goAbroad.core.community.repository.InteractionRepository;
 import com.goAbroad.core.community.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +34,12 @@ public class CommunityServiceImpl {
     private final ArticleRepository articleRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
+    private final CommentRepository commentRepository;
     private final InteractionRepository interactionRepository;
+    private final UserRepository userRepository;
 
     private final CommunityMapper communityMapper;
+    private final CommentMapper commentMapper;
 
     public PageR<ArticleResponse> getArticleList(Long userId, String tag, Boolean isFeatured, Integer page, Integer pageSize) {
         Page<Article> articlePage = articleRepository.findByCondition(tag, isFeatured, PageRequest.of(page - 1, pageSize));
@@ -163,7 +170,7 @@ public class CommunityServiceImpl {
         List<Answer> pagedList = start < answers.size() ? answers.subList(start, end) : new java.util.ArrayList<>();
 
         List<AnswerResponse> list = pagedList.stream()
-                .map(communityMapper::toAnswerResponse)
+                .map(answer -> toAnswerResponse(answer, null))
                 .collect(Collectors.toList());
 
         return PageR.ok((long) answers.size(), list, page, pageSize);
@@ -392,14 +399,73 @@ public class CommunityServiceImpl {
 
     private QuestionResponse toQuestionResponse(Question question, Long userId) {
         QuestionResponse response = communityMapper.toQuestionResponse(question);
+        // 设置作者信息
+        if (question.getAuthorId() != null) {
+            userRepository.findById(question.getAuthorId()).ifPresent(user -> response.setAuthor(AuthorDTO.builder()
+                    .userId(user.getId())
+                    .username(user.getUsername())
+                    .nickname(user.getNickname())
+                    .avatar(user.getAvatar())
+                    .build()));
+        }
         if (userId != null) {
             response.setIsFavorited(checkIsFavorited(userId, question.getId(), "question"));
         }
+
+        // 设置是否有回答和点赞最高的回答摘要
+        List<Answer> topAnswers = answerRepository.findTop1ByQuestionIdAndIsDeletedFalseOrderByLikesDesc(question.getId());
+        if (!topAnswers.isEmpty()) {
+            Answer topAnswer = topAnswers.get(0);
+            response.setHasAnswers(true);
+            QuestionResponse.TopAnswer topAnswerDTO = QuestionResponse.TopAnswer.builder()
+                    .author(AuthorDTO.builder()
+                            .userId(topAnswer.getAuthorId())
+                            .nickname(getUserNickname(topAnswer.getAuthorId()))
+                            .avatar(getUserAvatar(topAnswer.getAuthorId()))
+                            .build())
+                    .content(truncateContent(topAnswer.getContent(), 100))
+                    .likes(topAnswer.getLikes())
+                    .repliesCount(topAnswer.getRepliesCount())
+                    .build();
+            response.setTopAnswer(topAnswerDTO);
+        } else {
+            response.setHasAnswers(false);
+        }
+
         return response;
+    }
+
+    private String getUserNickname(Long userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(u -> u.getNickname()).orElse(null);
+    }
+
+    private String getUserAvatar(Long userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(u -> u.getAvatar()).orElse(null);
+    }
+
+    private String truncateContent(String content, int maxLength) {
+        if (content == null) return "";
+        // 移除HTML标签
+        String plainText = content.replaceAll("<[^>]+>", "").trim();
+        if (plainText.length() <= maxLength) return plainText;
+        return plainText.substring(0, maxLength) + "...";
     }
 
     private AnswerResponse toAnswerResponse(Answer answer, Long userId) {
         AnswerResponse response = communityMapper.toAnswerResponse(answer);
+        // 设置作者信息
+        if (answer.getAuthorId() != null) {
+            userRepository.findById(answer.getAuthorId()).ifPresent(user -> {
+                response.setAuthor(AuthorDTO.builder()
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .nickname(user.getNickname())
+                        .avatar(user.getAvatar())
+                        .build());
+            });
+        }
         if (userId != null) {
             response.setIsLiked(checkIsLiked(userId, answer.getId(), "answer"));
         }
@@ -435,5 +501,117 @@ public class CommunityServiceImpl {
                 }
                 break;
         }
+    }
+
+    // ==================== 评论相关 ====================
+
+    public PageR<CommentResponse> getCommentList(Long userId, Long answerId, Integer page, Integer pageSize) {
+        // 检查回答是否存在
+        Answer answer = answerRepository.findById(answerId).orElse(null);
+        if (answer == null || Boolean.TRUE.equals(answer.getIsDeleted())) {
+            throw new BusinessException("回答不存在");
+        }
+
+        // 获取顶层评论
+        Page<Comment> commentPage = commentRepository.findByAnswerIdAndParentIdIsNullAndIsDeletedFalseOrderByCreatedAtDesc(
+                answerId, PageRequest.of(page - 1, pageSize));
+
+        List<CommentResponse> list = commentPage.getContent().stream()
+                .map(comment -> toCommentResponse(comment, userId))
+                .collect(Collectors.toList());
+
+        return PageR.ok(commentPage.getTotalElements(), list, page, pageSize);
+    }
+
+    @Transactional
+    public CommentResponse createComment(Long userId, CommentCreateRequest request) {
+        // 检查回答是否存在
+        Answer answer = answerRepository.findById(request.getAnswerId()).orElse(null);
+        if (answer == null || Boolean.TRUE.equals(answer.getIsDeleted())) {
+            throw new BusinessException("回答不存在");
+        }
+
+        // 如果有父评论，检查父评论是否存在
+        if (request.getParentId() != null) {
+            Comment parentComment = commentRepository.findById(request.getParentId()).orElse(null);
+            if (parentComment == null || Boolean.TRUE.equals(parentComment.getIsDeleted())) {
+                throw new BusinessException("父评论不存在");
+            }
+            if (!parentComment.getAnswerId().equals(request.getAnswerId())) {
+                throw new BusinessException("父评论不属于该回答");
+            }
+            // 增加父评论的回复数
+            parentComment.setRepliesCount(parentComment.getRepliesCount() + 1);
+            commentRepository.save(parentComment);
+        }
+
+        Comment comment = commentMapper.toEntity(request);
+        comment.setUserId(userId);
+        commentRepository.save(comment);
+
+        // 更新回答的评论数
+        answer.setRepliesCount(answer.getRepliesCount() + 1);
+        answerRepository.save(answer);
+
+        return toCommentResponse(comment, userId);
+    }
+
+    @Transactional
+    public void deleteComment(Long userId, Long commentId) {
+        Comment comment = commentRepository.findById(commentId).orElse(null);
+        if (comment == null || Boolean.TRUE.equals(comment.getIsDeleted())) {
+            throw new BusinessException("评论不存在");
+        }
+        if (!comment.getUserId().equals(userId)) {
+            throw new BusinessException("无权限操作");
+        }
+
+        // 软删除
+        comment.setIsDeleted(true);
+        commentRepository.save(comment);
+
+        // 更新回答的评论数
+        Answer answer = answerRepository.findById(comment.getAnswerId()).orElse(null);
+        if (answer != null && answer.getRepliesCount() > 0) {
+            answer.setRepliesCount(answer.getRepliesCount() - 1);
+            answerRepository.save(answer);
+        }
+
+        // 如果有父评论，减少父评论的回复数
+        if (comment.getParentId() != null) {
+            Comment parentComment = commentRepository.findById(comment.getParentId()).orElse(null);
+            if (parentComment != null && parentComment.getRepliesCount() > 0) {
+                parentComment.setRepliesCount(parentComment.getRepliesCount() - 1);
+                commentRepository.save(parentComment);
+            }
+        }
+    }
+
+    private CommentResponse toCommentResponse(Comment comment, Long userId) {
+        CommentResponse response = commentMapper.toCommentResponse(comment);
+
+        // 设置作者信息
+        if (comment.getUserId() != null) {
+            userRepository.findById(comment.getUserId()).ifPresent(user -> response.setAuthor(AuthorDTO.builder()
+                    .userId(user.getId())
+                    .username(user.getUsername())
+                    .nickname(user.getNickname())
+                    .avatar(user.getAvatar())
+                    .build()));
+        }
+
+        // 加载子评论
+        List<Comment> childComments = commentRepository.findByParentIdAndIsDeletedFalseOrderByCreatedAtAsc(comment.getId());
+        List<CommentResponse> childResponses = childComments.stream()
+                .map(child -> toCommentResponse(child, userId))
+                .collect(Collectors.toList());
+        response.setReplies(childResponses);
+
+        // 检查是否点赞
+        if (userId != null) {
+            response.setIsLiked(checkIsLiked(userId, comment.getId(), "comment"));
+        }
+
+        return response;
     }
 }

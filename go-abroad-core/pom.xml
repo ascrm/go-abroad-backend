@@ -25,6 +25,12 @@
             <artifactId>go-abroad-common</artifactId>
         </dependency>
 
+        <!-- 引入认证模块（用户信息） -->
+        <dependency>
+            <groupId>com.goAbroad</groupId>
+            <artifactId>go-abroad-auth</artifactId>
+        </dependency>
+
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

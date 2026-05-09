@@ -11,6 +11,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class QuestionUpdateRequest {
     private String title;
-    private String content;
     private String category;
 }
