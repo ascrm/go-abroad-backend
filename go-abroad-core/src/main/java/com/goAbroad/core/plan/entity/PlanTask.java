@@ -4,7 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,19 +39,40 @@ public class PlanTask {
     private String aiSuggestion;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "quick_links", columnDefinition = "jsonb")
-    private Map<String, Object> quickLinks;
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> formData;
 
-    @Column(name = "is_completed")
+    @Column(length = 20)
     @Builder.Default
-    private Boolean isCompleted = false;
+    private String status = "pending";
 
-    @Column(name = "completed_at")
-    private LocalDateTime completedAt;
+    @Column(length = 20)
+    @Builder.Default
+    private String priority = "medium";
+
+    @Column(name = "reminder_time")
+    private LocalDateTime reminderTime;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attachments", columnDefinition = "jsonb")
+    private List<Map<String, Object>> attachments;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(name = "plan_date")
+    private LocalDate planDate;
 
     @Column(name = "sort_order")
     @Builder.Default
     private Integer sortOrder = 0;
+
+    @Column(name = "is_deleted")
+    @Builder.Default
+    private Boolean isDeleted = false;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

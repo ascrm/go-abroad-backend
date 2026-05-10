@@ -2,6 +2,8 @@ package com.goAbroad.core.plan.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -35,6 +37,30 @@ public class PlanPhase {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "is_deleted")
+    @Builder.Default
+    private Boolean isDeleted = false;
+
+    @Column(length = 20)
+    @Builder.Default
+    private String status = "pending";
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(name = "plan_date")
+    private LocalDate planDate;
+
+    @Column(name = "reminder_time")
+    private LocalDateTime reminderTime;
+
+    @Column(name = "is_milestone")
+    @Builder.Default
+    private Boolean isMilestone = false;
 
     @PrePersist
     protected void onCreate() {

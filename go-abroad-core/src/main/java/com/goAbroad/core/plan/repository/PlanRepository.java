@@ -13,17 +13,17 @@ import java.util.Optional;
 @Repository
 public interface PlanRepository extends JpaRepository<Plan, Long> {
 
-    Page<Plan> findByUserId(Long userId, Pageable pageable);
+    Page<Plan> findByUserIdAndIsDeletedFalse(Long userId, Pageable pageable);
 
-    Page<Plan> findByUserIdAndType(Long userId, Plan.PlanType type, Pageable pageable);
+    Page<Plan> findByUserIdAndTypeAndIsDeletedFalse(Long userId, Plan.PlanType type, Pageable pageable);
 
-    Page<Plan> findByUserIdAndStatus(Long userId, PlanStatus status, Pageable pageable);
+    Page<Plan> findByUserIdAndStatusAndIsDeletedFalse(Long userId, PlanStatus status, Pageable pageable);
 
-    Page<Plan> findByUserIdAndTypeAndStatus(Long userId, Plan.PlanType type, PlanStatus status, Pageable pageable);
+    Page<Plan> findByUserIdAndTypeAndStatusAndIsDeletedFalse(Long userId, Plan.PlanType type, PlanStatus status, Pageable pageable);
 
-    List<Plan> findByUserId(Long userId);
+    List<Plan> findByUserIdAndIsDeletedFalse(Long userId);
 
-    Optional<Plan> findByUserIdAndStatus(Long userId, PlanStatus status);
+    Optional<Plan> findByUserIdAndStatusAndIsDeletedFalse(Long userId, PlanStatus status);
 
     default Page<Plan> findByUserIdWithFilters(Long userId, String type, String status, Pageable pageable) {
         Plan.PlanType planType = null;
@@ -44,13 +44,13 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
         }
 
         if (planType != null && planStatus != null) {
-            return findByUserIdAndTypeAndStatus(userId, planType, planStatus, pageable);
+            return findByUserIdAndTypeAndStatusAndIsDeletedFalse(userId, planType, planStatus, pageable);
         } else if (planType != null) {
-            return findByUserIdAndType(userId, planType, pageable);
+            return findByUserIdAndTypeAndIsDeletedFalse(userId, planType, pageable);
         } else if (planStatus != null) {
-            return findByUserIdAndStatus(userId, planStatus, pageable);
+            return findByUserIdAndStatusAndIsDeletedFalse(userId, planStatus, pageable);
         } else {
-            return findByUserId(userId, pageable);
+            return findByUserIdAndIsDeletedFalse(userId, pageable);
         }
     }
 }

@@ -4,5 +4,5 @@ import lombok.Data;
 
 @Data
 public class TaskCompleteRequest {
-    private Boolean isCompleted;
+    private String status;
 }

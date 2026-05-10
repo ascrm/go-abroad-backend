@@ -41,7 +41,7 @@ public interface PlanMapper {
 
     void updatePhaseFromRequest(PhaseUpdateRequest request, @MappingTarget PlanPhase phase);
 
-    @Mapping(target = "isCompleted", constant = "false")
+    @Mapping(target = "status", constant = "pending")
     PlanTask toTaskEntity(TaskCreateRequest request);
 
     void updateTaskFromRequest(TaskUpdateRequest request, @MappingTarget PlanTask task);

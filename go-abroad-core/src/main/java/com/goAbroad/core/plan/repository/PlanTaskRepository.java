@@ -9,11 +9,11 @@ import java.util.List;
 @Repository
 public interface PlanTaskRepository extends JpaRepository<PlanTask, Long> {
 
-    List<PlanTask> findByPhaseIdOrderBySortOrderAsc(Long phaseId);
+    List<PlanTask> findByPhaseIdAndIsDeletedFalseOrderBySortOrderAsc(Long phaseId);
 
     void deleteByPhaseId(Long phaseId);
 
     default List<PlanTask> findByPhaseIdOrderBySortOrder(Long phaseId) {
-        return findByPhaseIdOrderBySortOrderAsc(phaseId);
+        return findByPhaseIdAndIsDeletedFalseOrderBySortOrderAsc(phaseId);
     }
 }

@@ -84,7 +84,7 @@ public class PlanServiceImpl {
         PlanStatus newStatus = PlanStatus.valueOf(request.getStatus());
         if (newStatus == PlanStatus.generating) {
             boolean hasGenerating = planRepository
-                    .findByUserIdAndStatus(userId, PlanStatus.generating)
+                    .findByUserIdAndStatusAndIsDeletedFalse(userId, PlanStatus.generating)
                     .filter(p -> !p.getId().equals(planId))
                     .isPresent();
             if (hasGenerating) {
@@ -106,12 +106,9 @@ public class PlanServiceImpl {
             throw new BusinessException("无权限访问该规划");
         }
 
-        List<PlanPhase> phases = phaseRepository.findByPlanIdOrderBySortOrder(planId);
-        for (PlanPhase phase : phases) {
-            taskRepository.deleteByPhaseId(phase.getId());
-        }
-        phaseRepository.deleteByPlanId(planId);
-        planRepository.delete(plan);
+        // 软删除：将 is_deleted 设置为 true
+        plan.setIsDeleted(true);
+        planRepository.save(plan);
     }
 
     /**
@@ -193,7 +190,7 @@ public class PlanServiceImpl {
                             .title(taskDto.getTitle())
                             .description(taskDto.getDescription())
                             .sortOrder(taskOrder++)
-                            .isCompleted(false)
+                            .status("pending")
                             .build();
                     tasks.add(task);
                 }
@@ -224,7 +221,7 @@ public class PlanServiceImpl {
     }
 
     public PlanResponse getGeneratingPlan(Long userId) {
-        return planRepository.findByUserIdAndStatus(userId, PlanStatus.generating)
+        return planRepository.findByUserIdAndStatusAndIsDeletedFalse(userId, PlanStatus.generating)
                 .map(planMapper::toResponse)
                 .orElse(null);
     }

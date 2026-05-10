@@ -95,15 +95,6 @@ public class TaskServiceImpl {
             throw new BusinessException("无权限访问该任务");
         }
 
-        if (request.getIsCompleted() != null) {
-            task.setIsCompleted(request.getIsCompleted());
-            if (request.getIsCompleted()) {
-                task.setCompletedAt(LocalDateTime.now());
-            } else {
-                task.setCompletedAt(null);
-            }
-        }
-
         planMapper.updateTaskFromRequest(request, task);
         task = taskRepository.save(task);
         return planMapper.toTaskResponse(task);
@@ -142,13 +133,7 @@ public class TaskServiceImpl {
             throw new BusinessException("无权限访问该任务");
         }
 
-        task.setIsCompleted(request.getIsCompleted());
-        if (request.getIsCompleted()) {
-            task.setCompletedAt(LocalDateTime.now());
-        } else {
-            task.setCompletedAt(null);
-        }
-
+        task.setStatus(request.getStatus());
         task = taskRepository.save(task);
         return planMapper.toTaskResponse(task);
     }

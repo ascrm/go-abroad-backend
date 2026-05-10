@@ -1,6 +1,7 @@
 package com.goAbroad.core.plan.dto;
 
 import lombok.Data;
+import java.time.LocalDate;
 import java.util.Map;
 
 @Data
@@ -9,4 +10,8 @@ public class PlanCreateRequest {
     private String type;
     private Map<String, Object> destination;
     private Map<String, Object> formData;
+    private String description;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private LocalDate planDate;
 }
