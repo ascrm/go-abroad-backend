@@ -7,6 +7,7 @@ import com.goAbroad.core.plan.entity.Plan;
 import com.goAbroad.core.plan.entity.PlanPhase;
 import com.goAbroad.core.plan.entity.PlanTask;
 import com.goAbroad.core.plan.enums.PlanStatus;
+import com.goAbroad.core.plan.enums.TaskStatus;
 import com.goAbroad.core.plan.mapper.PlanMapper;
 import com.goAbroad.core.plan.repository.PlanPhaseRepository;
 import com.goAbroad.core.plan.repository.PlanRepository;
@@ -190,7 +191,7 @@ public class PlanServiceImpl {
                             .title(taskDto.getTitle())
                             .description(taskDto.getDescription())
                             .sortOrder(taskOrder++)
-                            .status("pending")
+                            .status(TaskStatus.pending)
                             .build();
                     tasks.add(task);
                 }

@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.goAbroad.core.plan.enums.TaskStatus;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -133,7 +135,7 @@ public class TaskServiceImpl {
             throw new BusinessException("无权限访问该任务");
         }
 
-        task.setStatus(request.getStatus());
+        task.setStatus(TaskStatus.valueOf(request.getStatus()));
         task = taskRepository.save(task);
         return planMapper.toTaskResponse(task);
     }

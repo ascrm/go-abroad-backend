@@ -1,5 +1,6 @@
 package com.goAbroad.core.plan.entity;
 
+import com.goAbroad.core.plan.enums.TaskStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -42,9 +43,10 @@ public class PlanTask {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> formData;
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 20)
     @Builder.Default
-    private String status = "pending";
+    private TaskStatus status = TaskStatus.pending;
 
     @Column(length = 20)
     @Builder.Default

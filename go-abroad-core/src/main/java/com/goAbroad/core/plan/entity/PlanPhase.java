@@ -1,5 +1,6 @@
 package com.goAbroad.core.plan.entity;
 
+import com.goAbroad.core.plan.enums.PhaseStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,9 +43,10 @@ public class PlanPhase {
     @Builder.Default
     private Boolean isDeleted = false;
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 20)
     @Builder.Default
-    private String status = "pending";
+    private PhaseStatus status = PhaseStatus.pending;
 
     @Column(name = "start_date")
     private LocalDate startDate;
