@@ -29,4 +29,5 @@ public class PlanResponse {
     private List<PhaseResponse> phases;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<Map<String, Object>> resource;
 }

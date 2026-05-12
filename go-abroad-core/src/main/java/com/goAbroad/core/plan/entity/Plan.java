@@ -8,6 +8,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -73,6 +74,10 @@ public class Plan {
 
     @Column(name = "plan_date")
     private LocalDate planDate;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<Map<String, Object>> resource;
 
     @PrePersist
     protected void onCreate() {

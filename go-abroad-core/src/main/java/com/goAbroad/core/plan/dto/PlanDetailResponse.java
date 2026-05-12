@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -28,4 +29,5 @@ public class PlanDetailResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<PhaseResponse> phases;
+    private List<Map<String, Object>> resource;
 }

@@ -24,7 +24,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -151,18 +154,19 @@ public class PlanServiceImpl {
     public PlanResponse saveGeneratedPlan(Long userId, SaveGeneratedRequest request) {
         SaveGeneratedRequest.ParsedContent parsed = AiUtils.parseFromMarkdown(request.getContent());
 
-        // 2. 保存规划
-        Plan plan = Plan.builder()
+        // 1. 保存规划
+         Plan plan = Plan.builder()
                 .userId(userId)
                 .title(parsed.getTitle())
                 .type(Plan.PlanType.valueOf(request.getType()))
                 .destination(request.getDestination())
                 .formData(request.getFormData())
                 .status(PlanStatus.completed)
+                .resource(new ArrayList<>())
                 .build();
         plan = planRepository.save(plan);
 
-        // 4. 批量保存阶段
+        // 2. 保存阶段
         List<PlanPhase> phases = new ArrayList<>();
         if (parsed.getPhases() != null) {
             int phaseOrder = 0;
@@ -178,7 +182,7 @@ public class PlanServiceImpl {
             phases = phaseRepository.saveAll(phases);
         }
 
-        // 5. 批量保存任务
+        // 3. 保存任务
         List<PlanTask> tasks = new ArrayList<>();
         for (int i = 0; i < phases.size(); i++) {
             PlanPhase phase = phases.get(i);
@@ -199,7 +203,41 @@ public class PlanServiceImpl {
         }
         taskRepository.saveAll(tasks);
 
+        // 4. 并行生成资源推荐
+        final Long savedPlanId = plan.getId();
+        final String type = request.getType();
+        final Map<String, Object> destination = request.getDestination();
+        final Map<String, Object> formData = request.getFormData();
+        CompletableFuture.runAsync(() -> {
+            try {
+                generateResourceRecommend(savedPlanId, type, destination, formData);
+            } catch (Exception e) {
+                log.error("生成资源推荐失败, planId: {}", savedPlanId, e);
+            }
+        });
+
         return planMapper.toResponse(plan);
+    }
+
+    /**
+     * AI 生成资源推荐并更新到 plan
+     */
+    private void generateResourceRecommend(Long planId, String type, Map<String, Object> destination, Map<String, Object> formData) {
+        String prompt = AiUtils.buildResourceRecommendPrompt(type, destination, formData);
+        String systemPrompt = "你是一个专业的出国实用资源推荐顾问，精通各国签证、住宿、交通、餐饮、支付等资源的查找和推荐。请用简洁的中文回复，直接返回 JSON 数组，不要有其他解释性文字。";
+
+        String response = chatClient.prompt()
+                .system(systemPrompt)
+                .user(prompt)
+                .call()
+                .content();
+
+        List<Map<String, Object>> resources = AiUtils.parseResourceRecommend(response);
+
+        planRepository.findById(planId).ifPresent(plan -> {
+            plan.setResource(resources);
+            planRepository.save(plan);
+        });
     }
 
     @Transactional
@@ -212,13 +250,13 @@ public class PlanServiceImpl {
         }
 
         List<Long> phaseIds = request.getPhaseIds();
-        for (int i = 0; i < phaseIds.size(); i++) {
-            final int finalI = i;
-            phaseRepository.findById(phaseIds.get(i)).ifPresent(phase -> {
-                phase.setSortOrder(finalI);
+        IntStream.range(0, phaseIds.size()).forEach(i -> {
+            Long phaseId = phaseIds.get(i);
+            phaseRepository.findById(phaseId).ifPresent(phase -> {
+                phase.setSortOrder(i);
                 phaseRepository.save(phase);
             });
-        }
+        });
     }
 
     public PlanResponse getGeneratingPlan(Long userId) {

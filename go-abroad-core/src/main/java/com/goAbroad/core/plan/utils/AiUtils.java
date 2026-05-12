@@ -3,12 +3,15 @@ package com.goAbroad.core.plan.utils;
 import com.goAbroad.common.exception.BusinessException;
 import com.goAbroad.core.plan.dto.GeneratePlanRequest;
 import com.goAbroad.core.plan.dto.SaveGeneratedRequest;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 public class AiUtils {
 
     public static String buildPrompt(GeneratePlanRequest request) {
@@ -205,6 +208,94 @@ public class AiUtils {
             case "immigration" -> "你是一个专业的移民规划顾问，专长于各国移民政策、投资移民、技术移民等。请用简洁的中文回复。";
             default -> "你是一个专业的出境规划顾问，请用简洁的中文回复。";
         };
+    }
+
+    /**
+     * 生成资源推荐的 prompt
+     */
+    public static String buildResourceRecommendPrompt(String type, Map<String, Object> destination, Map<String, Object> formData) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("请根据以下用户信息，推荐适合的出国实用网站和APP资源。\n\n");
+
+        sb.append("【规划类型】").append(nullSafe(type)).append("\n\n");
+
+        if (destination != null && !destination.isEmpty()) {
+            sb.append("【目的地信息】\n");
+            for (var entry : destination.entrySet()) {
+                sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        if (formData != null && !formData.isEmpty()) {
+            sb.append("【用户信息】\n");
+            for (var entry : formData.entrySet()) {
+                sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("【输出格式要求】\n");
+        sb.append("请以 JSON 数组格式返回推荐资源，每条资源包含以下字段：\n");
+        sb.append("- title：资源名称（如：日本驻华大使馆签证页面）\n");
+        sb.append("- description：一句话描述\n");
+        sb.append("- url：网站URL（手机APP用 schema 或应用商店链接）\n");
+        sb.append("- webUrl：网页版URL（如果与 url 不同）\n");
+        sb.append("- category：分类（签证、住宿、交通、餐饮、购物、支付、通讯、安全、语言学习、学术资源、求职招聘、其他）\n");
+        sb.append("- cta：按钮文案（如：打开官网、下载APP、立即预约）\n\n");
+
+        sb.append("【资源推荐原则】\n");
+        sb.append("- 优先推荐官方资源（政府网站、大使馆、航空公司官网）\n");
+        sb.append("- 推荐知名可靠的第三方平台（Booking、携程等）\n");
+        sb.append("- 根据目的地国家推荐本地化资源\n");
+        sb.append("- 根据出行目的（旅游/留学/工作/移民）推荐不同类别的资源\n");
+        sb.append("- 总数控制在 8-15 条，确保覆盖用户核心需求\n\n");
+
+        sb.append("请直接返回 JSON 数组，不要有其他解释性文字。\n\n");
+
+        sb.append("【示例输出】\n");
+        sb.append("[\n");
+        sb.append("  {\"title\": \"日本驻华大使馆签证申请\", \"description\": \"日本签证申请官方入口\", \"url\": \"https://www.cn.emb-japan.go.jp/itprtop_zh/index.html\", \"webUrl\": \"\", \"category\": \"签证\", \"cta\": \"访问官网\"},\n");
+        sb.append("  {\"title\": \"Booking.com\", \"description\": \"全球酒店预订平台\", \"url\": \"https://www.booking.com\", \"webUrl\": \"\", \"category\": \"住宿\", \"cta\": \"立即预订\"}\n");
+        sb.append("]\n\n");
+
+        sb.append("请根据用户提供的信息生成推荐资源列表。");
+
+        return sb.toString();
+    }
+
+    /**
+     * 解析 AI 返回的资源推荐 JSON
+     */
+    @SuppressWarnings("unchecked")
+    public static List<Map<String, Object>> parseResourceRecommend(String content) {
+        if (content == null || content.isBlank()) {
+            return new ArrayList<>();
+        }
+
+        // 尝试提取 JSON 数组
+        String jsonContent = extractJsonArray(content);
+        if (jsonContent == null || jsonContent.isBlank()) {
+            return new ArrayList<>();
+        }
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            return mapper.readValue(jsonContent, List.class);
+        } catch (Exception e) {
+            log.warn("解析资源推荐 JSON 失败: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private static String extractJsonArray(String content) {
+        // 查找第一个 [ 和最后一个 ]
+        int start = content.indexOf('[');
+        int end = content.lastIndexOf(']');
+        if (start >= 0 && end > start) {
+            return content.substring(start, end + 1);
+        }
+        return null;
     }
 
     private static String nullSafe(Object value) {
