@@ -1,6 +1,7 @@
 package com.goAbroad.core.plan.dto;
 
 import lombok.Data;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,9 @@ public class SaveGeneratedRequest {
     @Data
     public static class ParsedContent {
         private String title;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private LocalDate planDate;
         private List<PhaseDto> phases;
     }
 }

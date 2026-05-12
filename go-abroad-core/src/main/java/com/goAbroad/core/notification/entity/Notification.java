@@ -1,41 +1,53 @@
-package com.goAbroad.core.resource.entity;
+package com.goAbroad.core.notification.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * 出境资源分类表
+ * 通知表
  */
 @Entity
-@Table(name = "tb_resource_category")
+@Table(name = "tb_notification")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ResourceCategory {
+public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 50, nullable = false)
-    private String name;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(length = 50, nullable = false)
-    private String icon;
+    private String type;
 
-    @Column(length = 20, nullable = false)
-    private String color;
+    @Column(length = 200, nullable = false)
+    private String title;
 
-    @Column(name = "sort_order", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String content;
+
+    @Column(name = "is_read")
     @Builder.Default
-    private Integer sortOrder = 0;
+    private Boolean isRead = false;
 
-    @Column(name = "is_active", nullable = false)
+    @Column(name = "is_pinned")
     @Builder.Default
-    private Boolean isActive = true;
+    private Boolean isPinned = false;
+
+    @Column(name = "related_id")
+    private Long relatedId;
+
+    @Column(name = "related_type")
+    private String relatedType;
+
+    @Column(name = "actor_id")
+    private Long actorId;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

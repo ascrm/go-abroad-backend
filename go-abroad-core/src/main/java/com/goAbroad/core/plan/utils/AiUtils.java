@@ -5,6 +5,7 @@ import com.goAbroad.core.plan.dto.GeneratePlanRequest;
 import com.goAbroad.core.plan.dto.SaveGeneratedRequest;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class AiUtils {
 
         sb.append("【输出格式要求】\n");
         sb.append("请用 Markdown 格式输出规划方案，严格遵循以下结构：\n");
-        sb.append("- 第一行：一级标题（## ），作为规划总标题\n");
+        sb.append("- 第一行：一级标题（## ），作为规划总标题，标题中必须包含时间范围，格式为：## 规划名称（YYYY年MM月-YYYY年MM月）\n");
         sb.append("- 每个阶段：一行二级标题（###），空一行后接一段阶段描述，再空一行后接若干任务列表\n");
         sb.append("- 每个任务：数字序号（1.），格式为 1. **任务标题** | 任务详细描述\n\n");
 
@@ -62,7 +63,7 @@ public class AiUtils {
         sb.append("- 计划入学时间：2026年4月\n\n");
         sb.append("请按以下格式生成：\n\n");
 
-        sb.append("## 日本东京大学修士留学规划（2025-2026）\n\n");
+        sb.append("## 日本东京大学修士留学规划（2025年4月-2026年3月）\n\n");
         sb.append("### 第一阶段：信息收集与目标确定\n\n");
         sb.append("全面了解东大修士申请要求、招生简章、时间节点，确定研究方向与目标导师。\n\n");
         sb.append("1. **研究教授信息** | 登录东大官网，查阅各研究室主页，整理目标教授的研究方向、论文列表及招生偏好，筛选3-5位匹配导师。\n\n");
@@ -114,6 +115,9 @@ public class AiUtils {
 
         SaveGeneratedRequest.ParsedContent result = new SaveGeneratedRequest.ParsedContent();
         result.setTitle(titleLine);
+
+        // 解析标题中的日期信息，格式如：（2025年4月-2026年3月）
+        parseDatesFromTitle(titleLine, result);
 
         // 2. 提取所有阶段：以 "\n###" 为分割点（兼容有无空格）
         // 兼容 "###标题" 和 "### 标题" 两种格式
@@ -239,6 +243,7 @@ public class AiUtils {
         sb.append("请以 JSON 数组格式返回推荐资源，每条资源包含以下字段：\n");
         sb.append("- title：资源名称（如：日本驻华大使馆签证页面）\n");
         sb.append("- description：一句话描述\n");
+        sb.append("- coverImage：封面图片URL（使用高质量的官方图片或应用图标URL，如无法获取可为空字符串）\n");
         sb.append("- url：网站URL（手机APP用 schema 或应用商店链接）\n");
         sb.append("- webUrl：网页版URL（如果与 url 不同）\n");
         sb.append("- category：分类（签证、住宿、交通、餐饮、购物、支付、通讯、安全、语言学习、学术资源、求职招聘、其他）\n");
@@ -255,8 +260,8 @@ public class AiUtils {
 
         sb.append("【示例输出】\n");
         sb.append("[\n");
-        sb.append("  {\"title\": \"日本驻华大使馆签证申请\", \"description\": \"日本签证申请官方入口\", \"url\": \"https://www.cn.emb-japan.go.jp/itprtop_zh/index.html\", \"webUrl\": \"\", \"category\": \"签证\", \"cta\": \"访问官网\"},\n");
-        sb.append("  {\"title\": \"Booking.com\", \"description\": \"全球酒店预订平台\", \"url\": \"https://www.booking.com\", \"webUrl\": \"\", \"category\": \"住宿\", \"cta\": \"立即预订\"}\n");
+        sb.append("  {\"title\": \"日本驻华大使馆签证申请\", \"description\": \"日本签证申请官方入口\", \"coverImage\": \"https://www.cn.emb-japan.go.jp/images/header_logo.png\", \"url\": \"https://www.cn.emb-japan.go.jp/itprtop_zh/index.html\", \"webUrl\": \"\", \"category\": \"签证\", \"cta\": \"访问官网\"},\n");
+        sb.append("  {\"title\": \"Booking.com\", \"description\": \"全球酒店预订平台\", \"coverImage\": \"https://cf.bstatic.com/static/img/favicon/2009515cd1de57e5e83379b21f7684c27d7ed0dd/favicon.ico\", \"url\": \"https://www.booking.com\", \"webUrl\": \"\", \"category\": \"住宿\", \"cta\": \"立即预订\"}\n");
         sb.append("]\n\n");
 
         sb.append("请根据用户提供的信息生成推荐资源列表。");
@@ -300,5 +305,66 @@ public class AiUtils {
 
     private static String nullSafe(Object value) {
         return value != null ? value.toString() : "未指定";
+    }
+
+    /**
+     * 从标题中解析日期信息，格式如：（2025年4月-2026年3月）
+     * 支持格式：
+     * - 2025年4月-2026年3月
+     * - 2025-2026
+     * - 2025年4月
+     */
+    private static void parseDatesFromTitle(String titleLine, SaveGeneratedRequest.ParsedContent result) {
+        if (titleLine == null || titleLine.isBlank()) {
+            return;
+        }
+
+        // 匹配括号中的日期范围，如：（2025年4月-2026年3月）
+        Pattern bracketPattern = Pattern.compile("[（(]([^）)]+)[）)]");
+        Matcher bracketMatcher = bracketPattern.matcher(titleLine);
+
+        if (bracketMatcher.find()) {
+            String dateRange = bracketMatcher.group(1);
+            parseDateRange(dateRange, result);
+            return;
+        }
+
+        // 尝试匹配简单年份范围，如：2025-2026
+        Pattern yearPattern = Pattern.compile("(\\d{4})\\s*[-~至到]\\s*(\\d{4})");
+        Matcher yearMatcher = yearPattern.matcher(titleLine);
+        if (yearMatcher.find()) {
+            String startYear = yearMatcher.group(1);
+            String endYear = yearMatcher.group(2);
+            result.setStartDate(LocalDate.parse(startYear + "-01-01"));
+            result.setEndDate(LocalDate.parse(endYear + "-12-31"));
+            result.setPlanDate(LocalDate.parse(endYear + "-12-31"));
+        }
+    }
+
+    private static void parseDateRange(String dateRange, SaveGeneratedRequest.ParsedContent result) {
+        // 匹配 "2025年4月-2026年3月" 或 "2025年4月-2026年" 格式
+        Pattern rangePattern = Pattern.compile("(\\d{4})年(\\d{1,2}月)?\\s*[-~至到]\\s*(\\d{4})年(\\d{1,2}月)?");
+        Matcher rangeMatcher = rangePattern.matcher(dateRange);
+
+        if (rangeMatcher.find()) {
+            int startYear = Integer.parseInt(rangeMatcher.group(1));
+            String startMonthStr = rangeMatcher.group(2);
+            int endYear = Integer.parseInt(rangeMatcher.group(3));
+            String endMonthStr = rangeMatcher.group(4);
+
+            int startMonth = 1;
+            int endMonth = 12;
+
+            if (startMonthStr != null && !startMonthStr.isEmpty()) {
+                startMonth = Integer.parseInt(startMonthStr.replace("月", ""));
+            }
+            if (endMonthStr != null && !endMonthStr.isEmpty()) {
+                endMonth = Integer.parseInt(endMonthStr.replace("月", ""));
+            }
+
+            result.setStartDate(LocalDate.of(startYear, startMonth, 1));
+            result.setEndDate(LocalDate.of(endYear, endMonth, 1).withDayOfMonth(java.time.YearMonth.of(endYear, endMonth).lengthOfMonth()));
+            result.setPlanDate(LocalDate.of(endYear, endMonth, 1).withDayOfMonth(java.time.YearMonth.of(endYear, endMonth).lengthOfMonth()));
+        }
     }
 }

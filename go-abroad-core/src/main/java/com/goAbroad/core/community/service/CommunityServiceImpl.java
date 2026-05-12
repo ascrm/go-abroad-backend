@@ -18,6 +18,7 @@ import com.goAbroad.core.community.repository.InteractionRepository;
 import com.goAbroad.core.community.repository.QuestionRepository;
 import com.goAbroad.core.community.repository.UserFollowRepository;
 import com.goAbroad.core.community.entity.UserFollow;
+import com.goAbroad.core.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +44,7 @@ public class CommunityServiceImpl {
 
     private final CommunityMapper communityMapper;
     private final CommentMapper commentMapper;
+    private final NotificationService notificationService;
 
     public PageR<ArticleResponse> getArticleList(Long userId, String tag, Boolean isFeatured, Integer page, Integer pageSize) {
         Page<Article> articlePage = articleRepository.findByCondition(tag, isFeatured, PageRequest.of(page - 1, pageSize));
@@ -603,6 +605,22 @@ public class CommunityServiceImpl {
         // 更新回答的评论数
         answer.setRepliesCount(answer.getRepliesCount() + 1);
         answerRepository.save(answer);
+
+        // 发送通知给回答作者
+        if (answer.getAuthorId() != null && !answer.getAuthorId().equals(userId)) {
+            String actorNickname = getUserNickname(userId);
+            String title = actorNickname + " 评论了你的回答";
+            String content = truncateContent(request.getContent(), 50);
+            notificationService.sendNotification(
+                    answer.getAuthorId(),
+                    "comment",
+                    title,
+                    content,
+                    answer.getId(),
+                    "answer",
+                    userId
+            );
+        }
 
         return toCommentResponse(comment, userId);
     }

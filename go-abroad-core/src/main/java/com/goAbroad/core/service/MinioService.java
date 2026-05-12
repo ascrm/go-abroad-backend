@@ -1,4 +1,4 @@
-package com.goAbroad.core.resource.service;
+package com.goAbroad.core.service;
 
 import io.minio.*;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +25,6 @@ public class MinioService {
 
     /**
      * 上传图片文件
-     *
-     * @param file 文件
-     * @return 文件访问URL
      */
     public String uploadImage(MultipartFile file) {
         return upload(file, "images");
@@ -35,17 +32,11 @@ public class MinioService {
 
     /**
      * 上传文件
-     *
-     * @param file   文件
-     * @param folder 文件夹前缀
-     * @return 文件访问URL
      */
     public String upload(MultipartFile file, String folder) {
         try {
-            // 确保 bucket 存在
             ensureBucketExists();
 
-            // 生成唯一文件名
             String originalFilename = file.getOriginalFilename();
             String extension = "";
             if (originalFilename != null && originalFilename.contains(".")) {
@@ -53,7 +44,6 @@ public class MinioService {
             }
             String fileName = folder + "/" + UUID.randomUUID().toString().replace("-", "") + extension;
 
-            // 上传文件
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucket)
@@ -63,7 +53,6 @@ public class MinioService {
                             .build()
             );
 
-            // 返回访问URL (直接URL，不使用presigned)
             String url = endpoint + "/" + bucket + "/" + fileName;
 
             log.info("文件上传成功: {}", url);
@@ -76,8 +65,6 @@ public class MinioService {
 
     /**
      * 删除文件
-     *
-     * @param objectName 对象名称（包含路径）
      */
     public void delete(String objectName) {
         try {
@@ -96,9 +83,6 @@ public class MinioService {
 
     /**
      * 获取文件流
-     *
-     * @param objectName 对象名称
-     * @return 文件输入流
      */
     public InputStream getFile(String objectName) {
         try {
@@ -114,9 +98,6 @@ public class MinioService {
         }
     }
 
-    /**
-     * 确保 bucket 存在，不存在则创建
-     */
     private void ensureBucketExists() {
         try {
             boolean exists = minioClient.bucketExists(

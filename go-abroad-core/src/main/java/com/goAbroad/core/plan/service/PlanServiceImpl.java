@@ -154,6 +154,14 @@ public class PlanServiceImpl {
     public PlanResponse saveGeneratedPlan(Long userId, SaveGeneratedRequest request) {
         SaveGeneratedRequest.ParsedContent parsed = AiUtils.parseFromMarkdown(request.getContent());
 
+        // 检查用户是否有正在生成中的规划
+        boolean hasGeneratingPlan = planRepository
+                .findByUserIdAndStatusAndIsDeletedFalse(userId, PlanStatus.generating, PageRequest.of(0, 1))
+                .getTotalElements() > 0;
+
+        // 如果有正在生成中的规划，新规划状态为draft；否则为generating（正在进行中）
+        PlanStatus initialStatus = hasGeneratingPlan ? PlanStatus.draft : PlanStatus.generating;
+
         // 1. 保存规划
          Plan plan = Plan.builder()
                 .userId(userId)
@@ -161,7 +169,10 @@ public class PlanServiceImpl {
                 .type(Plan.PlanType.valueOf(request.getType()))
                 .destination(request.getDestination())
                 .formData(request.getFormData())
-                .status(PlanStatus.completed)
+                .status(initialStatus)
+                .startDate(parsed.getStartDate())
+                .endDate(parsed.getEndDate())
+                .planDate(parsed.getPlanDate())
                 .resource(new ArrayList<>())
                 .build();
         plan = planRepository.save(plan);
