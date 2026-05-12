@@ -22,4 +22,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                   Pageable pageable);
 
     List<Article> findByIsPublishedTrue();
+
+    List<Article> findByAuthorIdOrderByCreatedAtDesc(Long authorId);
 }

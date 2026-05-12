@@ -1,37 +1,110 @@
 package com.goAbroad.core.profile.service;
 
-import com.goAbroad.core.profile.dto.BrowseHistoryResponse;
-import com.goAbroad.core.profile.entity.BrowseHistory;
-import com.goAbroad.core.profile.repository.BrowseHistoryRepository;
+import com.goAbroad.auth.repository.UserRepository;
+import com.goAbroad.core.community.dto.ArticleResponse;
+import com.goAbroad.core.community.dto.AuthorDTO;
+import com.goAbroad.core.community.entity.Article;
+import com.goAbroad.core.community.entity.Interaction;
+import com.goAbroad.core.community.mapper.CommunityMapper;
+import com.goAbroad.core.community.repository.ArticleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
 
-    private final BrowseHistoryRepository browseHistoryRepository;
+    private final com.goAbroad.core.community.repository.InteractionRepository interactionRepository;
+    private final ArticleRepository articleRepository;
+    private final CommunityMapper communityMapper;
+    private final UserRepository userRepository;
 
-    public List<BrowseHistoryResponse> getBrowseHistory(Long userId) {
+    /**
+     * 获取我创建的文章
+     */
+    public List<ArticleResponse> getMyArticles(Long userId) {
         if (userId == null) {
             return List.of();
         }
-        List<BrowseHistory> histories = browseHistoryRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return histories.stream()
-                .map(entity -> {
-                    BrowseHistoryResponse response = new BrowseHistoryResponse();
-                    response.setId(entity.getId());
-                    response.setTitle(entity.getTitle());
-                    response.setAuthor(entity.getAuthor());
-                    response.setViews(entity.getViews());
-                    response.setThumbnailUrl(entity.getThumbnailUrl());
-                    response.setSourceType(entity.getSourceType());
-                    response.setSourceId(entity.getSourceId());
+        List<Article> articles = articleRepository.findByAuthorIdOrderByCreatedAtDesc(userId);
+        return articles.stream()
+                .map(article -> toArticleResponseWithAuthor(article, userId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取我收藏的文章
+     */
+    public List<ArticleResponse> getMyFavoriteArticles(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        List<Interaction> favorites = interactionRepository.findByUserIdAndTargetTypeAndActionOrderByCreatedAtDesc(
+                userId, Interaction.TargetType.article, Interaction.Action.favorite);
+
+        if (favorites.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> articleIds = favorites.stream()
+                .map(Interaction::getTargetId)
+                .collect(Collectors.toSet());
+
+        List<Article> articles = articleRepository.findAllById(articleIds);
+        Map<Long, Boolean> favoriteMap = favorites.stream()
+                .collect(Collectors.toMap(Interaction::getTargetId, i -> true));
+
+        return articles.stream()
+                .map(article -> {
+                    ArticleResponse response = toArticleResponseWithAuthor(article, userId);
+                    response.setIsFavorited(favoriteMap.getOrDefault(article.getId(), false));
                     return response;
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取我浏览过的文章
+     */
+    public List<ArticleResponse> getMyBrowsedArticles(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        List<Interaction> browsed = interactionRepository.findByUserIdAndTargetTypeAndActionOrderByCreatedAtDesc(
+                userId, Interaction.TargetType.article, Interaction.Action.view);
+
+        if (browsed.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> articleIds = browsed.stream()
+                .map(Interaction::getTargetId)
+                .collect(Collectors.toSet());
+
+        List<Article> articles = articleRepository.findAllById(articleIds);
+
+        return articles.stream()
+                .map(article -> toArticleResponseWithAuthor(article, userId))
+                .collect(Collectors.toList());
+    }
+
+    private ArticleResponse toArticleResponseWithAuthor(Article article, Long userId) {
+        ArticleResponse response = communityMapper.toArticleResponse(article);
+        if (article.getAuthorId() != null) {
+            userRepository.findById(article.getAuthorId()).ifPresent(user -> {
+                response.setAuthor(AuthorDTO.builder()
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .nickname(user.getNickname())
+                        .avatar(user.getAvatar())
+                        .build());
+            });
+        }
+        return response;
     }
 }

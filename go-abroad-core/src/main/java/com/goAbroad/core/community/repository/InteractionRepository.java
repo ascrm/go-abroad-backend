@@ -28,4 +28,12 @@ public interface InteractionRepository extends JpaRepository<Interaction, Long> 
     void deleteByUserIdAndTargetIdAndTargetTypeAndAction(Long userId, Long targetId,
                                                          Interaction.TargetType targetType,
                                                          Interaction.Action action);
+
+    List<Interaction> findByUserIdAndTargetTypeAndAction(Long userId,
+                                                           Interaction.TargetType targetType,
+                                                           Interaction.Action action);
+
+    List<Interaction> findByUserIdAndTargetTypeAndActionOrderByCreatedAtDesc(Long userId,
+                                                                              Interaction.TargetType targetType,
+                                                                              Interaction.Action action);
 }
