@@ -1,6 +1,7 @@
 package com.goAbroad.core.service;
 
 import io.minio.*;
+import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -22,6 +24,9 @@ public class MinioService {
 
     @Value("${minio.bucket:GoAbroad}")
     private String bucket;
+
+    @Value("${minio.presigned-expiry-seconds:604800}")
+    private long presignedExpirySeconds;
 
     /**
      * 上传图片文件
@@ -53,7 +58,15 @@ public class MinioService {
                             .build()
             );
 
-            String url = endpoint + "/" + bucket + "/" + fileName;
+            // 返回预签名URL，有效期7天
+            String url = minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(bucket)
+                            .object(fileName)
+                            .expiry((int) presignedExpirySeconds, TimeUnit.SECONDS)
+                            .build()
+            );
 
             log.info("文件上传成功: {}", url);
             return url;

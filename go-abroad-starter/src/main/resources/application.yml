@@ -104,6 +104,7 @@ app:
 # MinIO 配置
 minio:
   endpoint: http://localhost:9000
-  access-key: adminminio
-  secret-key: adminminio
+  access-key: minioadmin
+  secret-key: minioadmin
   bucket: go-abroad
+  presigned-expiry-seconds: 604800
