@@ -17,6 +17,8 @@ public class AnswerResponse {
     private AuthorDTO author;
     private String content;
     private Integer likes;
+    private Integer favorites;
+    private Integer views;
     private Integer repliesCount;
     private Boolean isOfficial;
     private Boolean isBestAnswer;
@@ -24,4 +26,6 @@ public class AnswerResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Boolean isLiked;
+    private Boolean isFavorited;
+    private Boolean isFollowed;
 }

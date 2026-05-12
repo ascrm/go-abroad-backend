@@ -28,4 +28,5 @@ public class ArticleResponse {
     private LocalDateTime updatedAt;
     private Boolean isFavorited;
     private Boolean isLiked;
+    private Boolean isFollowed;
 }

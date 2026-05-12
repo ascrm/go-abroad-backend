@@ -48,7 +48,7 @@ public class Interaction {
      * 互动目标类型
      */
     public enum TargetType {
-        article, question, answer
+        article, question, answer, user, comment
     }
 
     /**

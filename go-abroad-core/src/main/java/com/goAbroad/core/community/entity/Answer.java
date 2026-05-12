@@ -30,6 +30,9 @@ public class Answer {
     private String content;
 
     @Column(columnDefinition = "INT DEFAULT 0")
+    private Integer favorites = 0;
+
+    @Column(columnDefinition = "INT DEFAULT 0")
     private Integer likes = 0;
 
     @Column(columnDefinition = "INT DEFAULT 0")

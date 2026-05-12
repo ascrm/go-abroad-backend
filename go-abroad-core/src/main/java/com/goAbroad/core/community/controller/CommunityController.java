@@ -98,7 +98,8 @@ public class CommunityController {
             @RequestParam Long questionId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        PageR<AnswerResponse> result = communityService.getAnswerList(questionId, page, pageSize);
+        Long userId = UserHolder.getUserId();
+        PageR<AnswerResponse> result = communityService.getAnswerList(userId, questionId, page, pageSize);
         return R.ok(result);
     }
 

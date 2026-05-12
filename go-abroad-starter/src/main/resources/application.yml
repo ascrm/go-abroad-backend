@@ -2,6 +2,11 @@ server:
   port: 8080
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   # 异步请求超时（SSE流式响应需要）
   mvc.async.request-timeout: 300000
   profiles:
@@ -95,3 +100,10 @@ app:
     google:
       client-id: ${app.social.google.client-id}
       redirect-uri: ${app.social.google.redirect-uri}
+
+# MinIO 配置
+minio:
+  endpoint: http://localhost:9000
+  access-key: adminminio
+  secret-key: adminminio
+  bucket: go-abroad

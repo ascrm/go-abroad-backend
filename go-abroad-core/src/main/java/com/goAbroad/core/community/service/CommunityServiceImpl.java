@@ -16,6 +16,8 @@ import com.goAbroad.core.community.repository.ArticleRepository;
 import com.goAbroad.core.community.repository.CommentRepository;
 import com.goAbroad.core.community.repository.InteractionRepository;
 import com.goAbroad.core.community.repository.QuestionRepository;
+import com.goAbroad.core.community.repository.UserFollowRepository;
+import com.goAbroad.core.community.entity.UserFollow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -36,6 +38,7 @@ public class CommunityServiceImpl {
     private final AnswerRepository answerRepository;
     private final CommentRepository commentRepository;
     private final InteractionRepository interactionRepository;
+    private final UserFollowRepository userFollowRepository;
     private final UserRepository userRepository;
 
     private final CommunityMapper communityMapper;
@@ -162,7 +165,7 @@ public class CommunityServiceImpl {
         questionRepository.save(question);
     }
 
-    public PageR<AnswerResponse> getAnswerList(Long questionId, Integer page, Integer pageSize) {
+    public PageR<AnswerResponse> getAnswerList(Long userId, Long questionId, Integer page, Integer pageSize) {
         List<Answer> answers = answerRepository.findByQuestionIdAndIsDeletedFalse(questionId);
 
         int start = (page - 1) * pageSize;
@@ -170,7 +173,7 @@ public class CommunityServiceImpl {
         List<Answer> pagedList = start < answers.size() ? answers.subList(start, end) : new java.util.ArrayList<>();
 
         List<AnswerResponse> list = pagedList.stream()
-                .map(answer -> toAnswerResponse(answer, null))
+                .map(answer -> toAnswerResponse(answer, userId))
                 .collect(Collectors.toList());
 
         return PageR.ok((long) answers.size(), list, page, pageSize);
@@ -277,6 +280,8 @@ public class CommunityServiceImpl {
 
         if (existing.isPresent()) {
             interactionRepository.deleteByUserIdAndTargetIdAndTargetTypeAndAction(userId, request.getTargetId(), targetType, Interaction.Action.like);
+            // 取消点赞，减少计数
+            updateLikesCount(request.getTargetType(), request.getTargetId(), -1);
             return InteractionResponse.builder()
                     .success(true)
                     .action("like")
@@ -291,6 +296,8 @@ public class CommunityServiceImpl {
                 .action(Interaction.Action.like)
                 .build();
         interactionRepository.save(interaction);
+        // 添加点赞，增加计数
+        updateLikesCount(request.getTargetType(), request.getTargetId(), 1);
 
         return InteractionResponse.builder()
                 .success(true)
@@ -301,11 +308,17 @@ public class CommunityServiceImpl {
 
     @Transactional
     public InteractionResponse handleFollow(Long userId, InteractionRequest request) {
-        Interaction.TargetType targetType = Interaction.TargetType.valueOf(request.getTargetType());
-        Optional<Interaction> existing = interactionRepository.findOne(userId, request.getTargetId(), targetType, Interaction.Action.follow);
+        Long targetUserId = request.getTargetId();
+
+        // 不能关注自己
+        if (userId.equals(targetUserId)) {
+            throw new BusinessException("不能关注自己");
+        }
+
+        Optional<UserFollow> existing = userFollowRepository.findByFollowerIdAndFollowingId(userId, targetUserId);
 
         if (existing.isPresent()) {
-            interactionRepository.deleteByUserIdAndTargetIdAndTargetTypeAndAction(userId, request.getTargetId(), targetType, Interaction.Action.follow);
+            userFollowRepository.delete(existing.get());
             return InteractionResponse.builder()
                     .success(true)
                     .action("follow")
@@ -313,13 +326,11 @@ public class CommunityServiceImpl {
                     .build();
         }
 
-        Interaction interaction = Interaction.builder()
-                .userId(userId)
-                .targetId(request.getTargetId())
-                .targetType(Interaction.TargetType.valueOf(request.getTargetType()))
-                .action(Interaction.Action.follow)
+        UserFollow follow = UserFollow.builder()
+                .followerId(userId)
+                .followingId(targetUserId)
                 .build();
-        interactionRepository.save(interaction);
+        userFollowRepository.save(follow);
 
         return InteractionResponse.builder()
                 .success(true)
@@ -390,9 +401,21 @@ public class CommunityServiceImpl {
 
     private ArticleResponse toArticleResponse(Article article, Long userId) {
         ArticleResponse response = communityMapper.toArticleResponse(article);
+        // 设置作者信息
+        if (article.getAuthorId() != null) {
+            userRepository.findById(article.getAuthorId()).ifPresent(user -> response.setAuthor(AuthorDTO.builder()
+                    .userId(user.getId())
+                    .username(user.getUsername())
+                    .nickname(user.getNickname())
+                    .avatar(user.getAvatar())
+                    .build()));
+        }
         if (userId != null) {
             response.setIsFavorited(checkIsFavorited(userId, article.getId(), "article"));
             response.setIsLiked(checkIsLiked(userId, article.getId(), "article"));
+            if (article.getAuthorId() != null) {
+                response.setIsFollowed(checkIsFollowed(userId, article.getAuthorId()));
+            }
         }
         return response;
     }
@@ -468,6 +491,11 @@ public class CommunityServiceImpl {
         }
         if (userId != null) {
             response.setIsLiked(checkIsLiked(userId, answer.getId(), "answer"));
+            response.setIsFavorited(checkIsFavorited(userId, answer.getId(), "answer"));
+            // 检查是否关注了回答作者
+            if (answer.getAuthorId() != null) {
+                response.setIsFollowed(checkIsFollowed(userId, answer.getAuthorId()));
+            }
         }
         return response;
     }
@@ -484,6 +512,10 @@ public class CommunityServiceImpl {
         return interaction.isPresent();
     }
 
+    private Boolean checkIsFollowed(Long userId, Long targetId) {
+        return userFollowRepository.existsByFollowerIdAndFollowingId(userId, targetId);
+    }
+
     private void updateFavoritesCount(String targetType, Long targetId, int delta) {
         switch (targetType) {
             case "article":
@@ -498,6 +530,25 @@ public class CommunityServiceImpl {
                 if (question != null) {
                     question.setFavorites(Math.max(0, question.getFavorites() + delta));
                     questionRepository.save(question);
+                }
+                break;
+            case "answer":
+                Answer answer = answerRepository.findById(targetId).orElse(null);
+                if (answer != null) {
+                    answer.setFavorites(Math.max(0, answer.getFavorites() + delta));
+                    answerRepository.save(answer);
+                }
+                break;
+        }
+    }
+
+    private void updateLikesCount(String targetType, Long targetId, int delta) {
+        switch (targetType) {
+            case "answer":
+                Answer answer = answerRepository.findById(targetId).orElse(null);
+                if (answer != null) {
+                    answer.setLikes(Math.max(0, answer.getLikes() + delta));
+                    answerRepository.save(answer);
                 }
                 break;
         }
