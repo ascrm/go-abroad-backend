@@ -17,7 +17,7 @@ spring:
   # 数据库配置 (使用PostgreSQL)
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/go_abroad
+    url: jdbc:postgresql://localhost:5432/postgres
     username: ${spring.datasource.username}
     password: ${spring.datasource.password}
     hikari:

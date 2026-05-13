@@ -77,6 +77,7 @@ public class SecurityConfig {
                     "/api/auth/refresh",
                     "/api/auth/sendCode",
                     "/api/auth/social/",
+                    "/api/search",
                     "/error"
                 ).permitAll()
                 // 流式接口需要认证但允许预检
