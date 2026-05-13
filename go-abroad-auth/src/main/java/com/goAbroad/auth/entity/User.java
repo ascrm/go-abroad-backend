@@ -30,6 +30,9 @@ public class User {
     @Column(length = 500)
     private String avatar;         // 头像URL
 
+    @Column(name = "bg_url", length = 500)
+    private String bgUrl;         // 背景图URL
+
     @Column(nullable = false)
     private Integer gender = 0;    // 性别: 0-未知, 1-男, 2-女
 

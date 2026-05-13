@@ -10,7 +10,11 @@ public class UserInfoUpdateRequest {
 
     private String nickname;
 
+    private String username;
+
     private String avatar;
+
+    private String bgUrl;
 
     private Integer gender;
 

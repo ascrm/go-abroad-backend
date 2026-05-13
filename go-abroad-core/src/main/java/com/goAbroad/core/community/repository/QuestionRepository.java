@@ -23,6 +23,6 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     List<Question> findByIsDeletedFalse();
 
-    @Query(value = "SELECT * FROM tb_questions WHERE is_deleted = false AND title &@ :keyword LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_questions WHERE is_deleted = false AND title &@ CAST(:keyword AS text) LIMIT :limit", nativeQuery = true)
     List<Question> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 }

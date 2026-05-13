@@ -51,6 +51,14 @@ public class ProfileController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("用户不存在"));
 
+        // 检查用户名是否被占用
+        if (request.getUsername() != null && !request.getUsername().isEmpty()) {
+            boolean exists = userRepository.existsByUsernameAndIdNot(request.getUsername(), userId);
+            if (exists) {
+                throw new BusinessException("标识名已被使用");
+            }
+        }
+
         userMapper.updateFromRequest(request, user);
         user = userRepository.save(user);
 

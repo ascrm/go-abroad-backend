@@ -22,6 +22,8 @@ public class UserInfoResponse {
 
     private String avatar;
 
+    private String bgUrl;
+
     private Integer gender;
 
     private String birthday;

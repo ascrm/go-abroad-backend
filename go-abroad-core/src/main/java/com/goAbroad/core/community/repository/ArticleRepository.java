@@ -25,6 +25,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     List<Article> findByAuthorIdOrderByCreatedAtDesc(Long authorId);
 
-    @Query(value = "SELECT * FROM tb_articles WHERE is_published = true AND (title &@ :keyword OR description &@ :keyword) LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_articles WHERE is_published = true AND (title &@ CAST(:keyword AS text) OR description &@ CAST(:keyword AS text)) LIMIT :limit", nativeQuery = true)
     List<Article> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 }

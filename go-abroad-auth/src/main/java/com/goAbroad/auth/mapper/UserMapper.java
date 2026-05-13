@@ -20,13 +20,13 @@ public interface UserMapper {
      */
     @Mapping(target = "userId", source = "id")
     @Mapping(target = "birthday", expression = "java(user.getBirthday() != null ? user.getBirthday().toString() : null)")
+    @Mapping(target = "bgUrl", source = "bgUrl")
     UserInfoResponse toResponse(User user);
 
     /**
      * 更新请求转实体
      */
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "username", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

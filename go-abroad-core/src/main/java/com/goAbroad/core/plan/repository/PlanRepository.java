@@ -27,7 +27,7 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
 
     Optional<Plan> findByUserIdAndStatusAndIsDeletedFalse(Long userId, PlanStatus status);
 
-    @Query(value = "SELECT * FROM tb_plans WHERE is_deleted = false AND (title &@ :keyword OR description &@ :keyword) LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_plans WHERE is_deleted = false AND (title &@ CAST(:keyword AS text) OR description &@ CAST(:keyword AS text)) LIMIT :limit", nativeQuery = true)
     List<Plan> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 
     default Page<Plan> findByUserIdWithFilters(Long userId, String type, String status, Pageable pageable) {

@@ -21,8 +21,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUsername(String username);
 
+    boolean existsByUsernameAndIdNot(String username, Long id);
+
     Page<User> findByUsernameContainingIgnoreCaseOrNicknameContainingIgnoreCase(String username, String nickname, Pageable pageable);
 
-    @Query(value = "SELECT * FROM tb_user WHERE status = 1 AND (username &@ :keyword OR nickname &@ :keyword) LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_user WHERE status = 1 AND (username &@ CAST(:keyword AS text) OR nickname &@ CAST(:keyword AS text)) LIMIT :limit", nativeQuery = true)
     List<User> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 }

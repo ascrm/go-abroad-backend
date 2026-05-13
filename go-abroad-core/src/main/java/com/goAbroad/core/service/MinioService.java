@@ -67,7 +67,6 @@ public class MinioService {
                             .expiry((int) presignedExpirySeconds, TimeUnit.SECONDS)
                             .build()
             );
-
             log.info("文件上传成功: {}", url);
             return url;
         } catch (Exception e) {
