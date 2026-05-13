@@ -23,6 +23,6 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     List<Question> findByIsDeletedFalse();
 
-    @Query(value = "SELECT * FROM tb_questions WHERE is_deleted = false AND pgroonga_match_all(ARRAY[title]::text[], :keyword) ORDER BY pgroonga_score(ARRAY[title]::text[], :keyword) DESC LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_questions WHERE is_deleted = false AND title &@ :keyword LIMIT :limit", nativeQuery = true)
     List<Question> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 }

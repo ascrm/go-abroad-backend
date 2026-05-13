@@ -84,12 +84,11 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public void sendNotification(Long userId, String type, String title, String content,
+    public void sendNotification(Long userId, String type, String content,
                                   Long relatedId, String relatedType, Long actorId) {
         Notification notification = Notification.builder()
                 .userId(userId)
                 .type(type)
-                .title(title)
                 .content(content)
                 .relatedId(relatedId)
                 .relatedType(relatedType)
@@ -98,6 +97,30 @@ public class NotificationServiceImpl implements NotificationService {
                 .isPinned(false)
                 .build();
         notificationRepository.save(notification);
+    }
+
+    @Override
+    public PageR<NotificationResponse> getNonSystemNotificationList(Long userId, Integer page, Integer pageSize) {
+        Page<Notification> notificationPage = notificationRepository
+                .findByUserIdAndTypeNotOrderByCreatedAtDesc(userId, "system", PageRequest.of(page - 1, pageSize));
+
+        List<NotificationResponse> list = notificationPage.getContent().stream()
+                .map(this::toNotificationResponse)
+                .collect(Collectors.toList());
+
+        return PageR.ok(notificationPage.getTotalElements(), list, page, pageSize);
+    }
+
+    @Override
+    public PageR<NotificationResponse> getSystemNotificationList(Long userId, Integer page, Integer pageSize) {
+        Page<Notification> notificationPage = notificationRepository
+                .findByUserIdAndTypeOrderByCreatedAtDesc(userId, "system", PageRequest.of(page - 1, pageSize));
+
+        List<NotificationResponse> list = notificationPage.getContent().stream()
+                .map(this::toNotificationResponse)
+                .collect(Collectors.toList());
+
+        return PageR.ok(notificationPage.getTotalElements(), list, page, pageSize);
     }
 
     private NotificationResponse toNotificationResponse(Notification notification) {

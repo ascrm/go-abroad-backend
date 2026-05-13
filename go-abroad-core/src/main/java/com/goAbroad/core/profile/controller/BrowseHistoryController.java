@@ -4,6 +4,7 @@ import com.goAbroad.auth.repository.UserRepository;
 import com.goAbroad.common.result.R;
 import com.goAbroad.common.utils.UserHolder;
 import com.goAbroad.core.community.dto.ArticleResponse;
+import com.goAbroad.core.community.dto.QuestionResponse;
 import com.goAbroad.core.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -43,5 +44,14 @@ public class BrowseHistoryController {
     public R<List<ArticleResponse>> getMyBrowsedArticles() {
         Long userId = UserHolder.getUserId();
         return R.ok(profileService.getMyBrowsedArticles(userId));
+    }
+
+    /**
+     * 获取我浏览过的问答
+     */
+    @GetMapping("/my-browsed-questions")
+    public R<List<QuestionResponse>> getMyBrowsedQuestions() {
+        Long userId = UserHolder.getUserId();
+        return R.ok(profileService.getMyBrowsedQuestions(userId));
     }
 }

@@ -1,11 +1,6 @@
 package com.goAbroad.auth.controller;
 
-import com.goAbroad.auth.dto.LoginRequest;
-import com.goAbroad.auth.dto.LoginResponse;
-import com.goAbroad.auth.dto.RegisterRequest;
-import com.goAbroad.auth.dto.SendCodeRequest;
-import com.goAbroad.auth.dto.SendCodeResponse;
-import com.goAbroad.auth.dto.SocialLoginRequest;
+import com.goAbroad.auth.dto.*;
 import com.goAbroad.auth.service.AuthServiceImpl;
 import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.common.result.R;
@@ -92,6 +87,56 @@ public class AuthController {
             authService.logout(userId);
             UserHolder.clear();
         }
+        return R.ok();
+    }
+
+    /**
+     * 切换账号
+     */
+    @PostMapping("/switch-account")
+    public R<LoginResponse> switchAccount(@RequestBody SwitchAccountRequest request) {
+        LoginResponse response = authService.switchAccount(request.getAccountType(), request.getAccountValue());
+        return R.ok(response);
+    }
+
+    /**
+     * 修改密码（已登录用户）
+     */
+    @PostMapping("/reset-password")
+    public R<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getNewPassword());
+        return R.ok();
+    }
+
+    /**
+     * 通过验证码重置密码（忘记密码）
+     */
+    @PostMapping("/reset-password-by-code")
+    public R<Void> resetPasswordByCode(@Valid @RequestBody ResetPasswordByCodeRequest request) {
+        authService.resetPasswordByCode(
+                request.getAccountType(),
+                request.getAccountValue(),
+                request.getCode(),
+                request.getNewPassword()
+        );
+        return R.ok();
+    }
+
+    /**
+     * 验证账号是否属于当前用户（用于找回密码）
+     */
+    @PostMapping("/verify-account")
+    public R<Void> verifyAccount(@Valid @RequestBody VerifyAccountRequest request) {
+        authService.verifyAccountBelongsToCurrentUser(request.getAccountType(), request.getAccountValue());
+        return R.ok();
+    }
+
+    /**
+     * 验证验证码是否正确（用于找回密码）
+     */
+    @PostMapping("/verify-code")
+    public R<Void> verifyCode(@Valid @RequestBody VerifyCodeRequest request) {
+        authService.verifyCode(request.getAccountType(), request.getAccount(), request.getCode());
         return R.ok();
     }
 

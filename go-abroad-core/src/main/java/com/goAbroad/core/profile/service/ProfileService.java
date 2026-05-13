@@ -3,10 +3,13 @@ package com.goAbroad.core.profile.service;
 import com.goAbroad.auth.repository.UserRepository;
 import com.goAbroad.core.community.dto.ArticleResponse;
 import com.goAbroad.core.community.dto.AuthorDTO;
+import com.goAbroad.core.community.dto.QuestionResponse;
 import com.goAbroad.core.community.entity.Article;
 import com.goAbroad.core.community.entity.Interaction;
+import com.goAbroad.core.community.entity.Question;
 import com.goAbroad.core.community.mapper.CommunityMapper;
 import com.goAbroad.core.community.repository.ArticleRepository;
+import com.goAbroad.core.community.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +24,7 @@ public class ProfileService {
 
     private final com.goAbroad.core.community.repository.InteractionRepository interactionRepository;
     private final ArticleRepository articleRepository;
+    private final QuestionRepository questionRepository;
     private final CommunityMapper communityMapper;
     private final UserRepository userRepository;
 
@@ -93,10 +97,50 @@ public class ProfileService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 获取我浏览过的问答
+     */
+    public List<QuestionResponse> getMyBrowsedQuestions(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        List<Interaction> browsed = interactionRepository.findByUserIdAndTargetTypeAndActionOrderByCreatedAtDesc(
+                userId, Interaction.TargetType.question, Interaction.Action.view);
+
+        if (browsed.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> questionIds = browsed.stream()
+                .map(Interaction::getTargetId)
+                .collect(Collectors.toSet());
+
+        List<Question> questions = questionRepository.findAllById(questionIds);
+
+        return questions.stream()
+                .map(question -> toQuestionResponseWithAuthor(question, userId))
+                .collect(Collectors.toList());
+    }
+
     private ArticleResponse toArticleResponseWithAuthor(Article article, Long userId) {
         ArticleResponse response = communityMapper.toArticleResponse(article);
         if (article.getAuthorId() != null) {
             userRepository.findById(article.getAuthorId()).ifPresent(user -> {
+                response.setAuthor(AuthorDTO.builder()
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .nickname(user.getNickname())
+                        .avatar(user.getAvatar())
+                        .build());
+            });
+        }
+        return response;
+    }
+
+    private QuestionResponse toQuestionResponseWithAuthor(Question question, Long userId) {
+        QuestionResponse response = communityMapper.toQuestionResponse(question);
+        if (question.getAuthorId() != null) {
+            userRepository.findById(question.getAuthorId()).ifPresent(user -> {
                 response.setAuthor(AuthorDTO.builder()
                         .userId(user.getId())
                         .username(user.getUsername())

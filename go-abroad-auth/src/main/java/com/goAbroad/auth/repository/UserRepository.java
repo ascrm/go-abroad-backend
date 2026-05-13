@@ -23,6 +23,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Page<User> findByUsernameContainingIgnoreCaseOrNicknameContainingIgnoreCase(String username, String nickname, Pageable pageable);
 
-    @Query(value = "SELECT * FROM tb_user WHERE status = 1 AND pgroonga_match_all(ARRAY[username, nickname]::text[], :keyword) ORDER BY pgroonga_score(ARRAY[username, nickname]::text[], :keyword) DESC LIMIT :limit", nativeQuery = true)
+    @Query(value = "SELECT * FROM tb_user WHERE status = 1 AND (username &@ :keyword OR nickname &@ :keyword) LIMIT :limit", nativeQuery = true)
     List<User> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 }

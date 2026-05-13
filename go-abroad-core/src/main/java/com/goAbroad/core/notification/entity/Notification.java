@@ -26,9 +26,6 @@ public class Notification {
     @Column(length = 50, nullable = false)
     private String type;
 
-    @Column(length = 200, nullable = false)
-    private String title;
-
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 

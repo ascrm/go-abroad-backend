@@ -88,6 +88,20 @@ public class CaptchaUtil {
      * @return 是否验证成功
      */
     public boolean verifyCaptcha(Integer accountType, String account, Integer codeType, String code) {
+        return verifyCaptcha(accountType, account, codeType, code, false);
+    }
+
+    /**
+     * 验证验证码
+     *
+     * @param accountType 账号类型: 2-邮箱, 3-手机号
+     * @param account     账号
+     * @param codeType    验证码类型: 1-注册, 2-登录, 3-找回密码
+     * @param code        用户输入的验证码
+     * @param keepOnSuccess 验证成功后是否保留验证码（true=不删除，false=删除）
+     * @return 是否验证成功
+     */
+    public boolean verifyCaptcha(Integer accountType, String account, Integer codeType, String code, boolean keepOnSuccess) {
         String key = buildKey(accountType, codeType, account);
 
         String storedCode = redisTemplate.opsForValue().get(key);
@@ -101,8 +115,10 @@ public class CaptchaUtil {
         boolean matched = storedCode.equals(code);
 
         if (matched) {
-            // 验证成功后删除验证码
-            redisTemplate.delete(key);
+            // 验证成功后根据参数决定是否删除验证码
+            if (!keepOnSuccess) {
+                redisTemplate.delete(key);
+            }
             log.info("验证码验证成功: accountType={}, codeType={}, account={}",
                     accountType, codeType, maskAccount(account));
         } else {

@@ -11,6 +11,7 @@ import com.goAbroad.auth.strategy.SocialLoginStrategy;
 import com.goAbroad.auth.utils.CaptchaUtil;
 import com.goAbroad.auth.utils.JwtUtils;
 import com.goAbroad.common.exception.BusinessException;
+import com.goAbroad.common.utils.UserHolder;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -433,5 +434,95 @@ public class AuthServiceImpl {
      */
     public void logout(Long userId) {
         log.info("用户退出登录: userId={}", userId);
+    }
+
+    /**
+     * 切换账号
+     * 根据 accountType + accountValue 查找账号并返回新的 Token
+     */
+    public LoginResponse switchAccount(Integer accountType, String accountValue) {
+        // 1. 查询账号
+        UserAccount userAccount = userAccountRepository.findByAccountTypeAndAccountValue(accountType, accountValue)
+                .orElseThrow(() -> new BusinessException("账号不存在"));
+
+        // 2. 检查用户状态
+        User user = userAccount.getUser();
+        if (user.getStatus() != 1) {
+            throw new BusinessException("账号已被禁用");
+        }
+
+        // 3. 生成新 Token
+        return buildLoginResponse(user);
+    }
+
+    /**
+     * 修改密码（已登录用户）
+     */
+    @Transactional
+    public void resetPassword(String newPassword) {
+        Long userId = UserHolder.getUserId();
+        if (userId == null) {
+            throw new BusinessException("用户未登录");
+        }
+
+        // 1. 获取用户的密码账号（有密码的账号）
+        List<UserAccount> accounts = userAccountRepository.findByUserId(userId);
+        UserAccount passwordAccount = accounts.stream()
+                .filter(acc -> acc.getPassword() != null && !acc.getPassword().isEmpty())
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("该账号不支持修改密码"));
+
+        // 2. 更新密码
+        passwordAccount.setPassword(passwordEncoder.encode(newPassword));
+        userAccountRepository.save(passwordAccount);
+    }
+
+    /**
+     * 重置密码（通过验证码，用于忘记密码）
+     */
+    @Transactional
+    public void resetPasswordByCode(Integer accountType, String accountValue, String code, String newPassword) {
+        // 1. 验证验证码
+        boolean verified = captchaUtil.verifyCaptcha(accountType, accountValue, 3, code); // 3=忘记密码
+        if (!verified) {
+            throw new BusinessException("验证码错误或已过期");
+        }
+
+        // 2. 查询账号
+        UserAccount userAccount = userAccountRepository.findByAccountTypeAndAccountValue(accountType, accountValue)
+                .orElseThrow(() -> new BusinessException("账号不存在"));
+
+        // 3. 更新密码
+        userAccount.setPassword(passwordEncoder.encode(newPassword));
+        userAccountRepository.save(userAccount);
+    }
+
+    /**
+     * 验证账号是否属于当前用户
+     */
+    public void verifyAccountBelongsToCurrentUser(Integer accountType, String accountValue) {
+        Long userId = UserHolder.getUserId();
+        if (userId == null) {
+            throw new BusinessException("用户未登录");
+        }
+
+        // 查询账号
+        UserAccount userAccount = userAccountRepository.findByAccountTypeAndAccountValue(accountType, accountValue)
+                .orElseThrow(() -> new BusinessException("该账号未注册"));
+
+        // 验证是否属于当前用户
+        if (!userAccount.getUser().getId().equals(userId)) {
+            throw new BusinessException("该账号不属于当前用户");
+        }
+    }
+
+    /**
+     * 验证验证码是否正确
+     */
+    public void verifyCode(Integer accountType, String account, String code) {
+        boolean verified = captchaUtil.verifyCaptcha(accountType, account, 3, code, true); // 3=忘记密码, keepOnSuccess=true保留验证码
+        if (!verified) {
+            throw new BusinessException("验证码错误或已过期");
+        }
     }
 }

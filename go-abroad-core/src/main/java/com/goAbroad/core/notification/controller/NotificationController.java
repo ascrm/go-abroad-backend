@@ -22,7 +22,16 @@ public class NotificationController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize) {
         Long userId = UserHolder.getUserId();
-        PageR<NotificationResponse> result = notificationService.getNotificationList(userId, page, pageSize);
+        PageR<NotificationResponse> result = notificationService.getNonSystemNotificationList(userId, page, pageSize);
+        return R.ok(result);
+    }
+
+    @GetMapping("/system-list")
+    public R<PageR<NotificationResponse>> getSystemNotificationList(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize) {
+        Long userId = UserHolder.getUserId();
+        PageR<NotificationResponse> result = notificationService.getSystemNotificationList(userId, page, pageSize);
         return R.ok(result);
     }
 

@@ -38,5 +38,15 @@ public interface NotificationService {
     /**
      * 发送通知（供其他服务调用）
      */
-    void sendNotification(Long userId, String type, String title, String content, Long relatedId, String relatedType, Long actorId);
+    void sendNotification(Long userId, String type, String content, Long relatedId, String relatedType, Long actorId);
+
+    /**
+     * 获取非系统通知列表
+     */
+    PageR<NotificationResponse> getNonSystemNotificationList(Long userId, Integer page, Integer pageSize);
+
+    /**
+     * 获取系统通知列表
+     */
+    PageR<NotificationResponse> getSystemNotificationList(Long userId, Integer page, Integer pageSize);
 }

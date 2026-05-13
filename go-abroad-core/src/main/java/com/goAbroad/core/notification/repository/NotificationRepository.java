@@ -19,6 +19,16 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Page<Notification> findByUserIdOrderByIsPinnedDescCreatedAtDesc(Long userId, Pageable pageable);
 
     /**
+     * 获取用户非系统通知列表（按创建时间倒序）
+     */
+    Page<Notification> findByUserIdAndTypeNotOrderByCreatedAtDesc(Long userId, String type, Pageable pageable);
+
+    /**
+     * 获取用户系统通知列表（按创建时间倒序）
+     */
+    Page<Notification> findByUserIdAndTypeOrderByCreatedAtDesc(Long userId, String type, Pageable pageable);
+
+    /**
      * 获取用户未读通知数量
      */
     long countByUserIdAndIsReadFalse(Long userId);

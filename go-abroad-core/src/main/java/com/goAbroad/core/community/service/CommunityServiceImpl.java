@@ -608,13 +608,10 @@ public class CommunityServiceImpl {
 
         // 发送通知给回答作者
         if (answer.getAuthorId() != null && !answer.getAuthorId().equals(userId)) {
-            String actorNickname = getUserNickname(userId);
-            String title = actorNickname + " 评论了你的回答";
             String content = truncateContent(request.getContent(), 50);
             notificationService.sendNotification(
                     answer.getAuthorId(),
                     "comment",
-                    title,
                     content,
                     answer.getId(),
                     "answer",
