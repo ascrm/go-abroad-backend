@@ -439,19 +439,32 @@ public class AuthServiceImpl {
     /**
      * 切换账号
      * 根据 accountType + accountValue 查找账号并返回新的 Token
+     * accountType=1 表示第三方登录，通过 UserSocial 表查询
+     * accountType=2/3 表示邮箱/手机号，通过 UserAccount 表查询
      */
-    public LoginResponse switchAccount(Integer accountType, String accountValue) {
-        // 1. 查询账号
-        UserAccount userAccount = userAccountRepository.findByAccountTypeAndAccountValue(accountType, accountValue)
-                .orElseThrow(() -> new BusinessException("账号不存在"));
+    public LoginResponse switchAccount(Integer accountType, String accountValue, Long targetUserId) {
+        User user;
 
-        // 2. 检查用户状态
-        User user = userAccount.getUser();
+        if (accountType == 1) {
+            // 第三方登录：通过 userId + socialType 查找
+            // accountValue 格式为 "socialType"（如 "3" 表示 Google）
+            Integer socialType = Integer.parseInt(accountValue);
+            UserSocial userSocial = userSocialRepository.findByUserIdAndSocialType(targetUserId, socialType)
+                    .orElseThrow(() -> new BusinessException("账号不存在"));
+            user = userSocial.getUser();
+        } else {
+            // 邮箱/手机号登录，通过 UserAccount 表查询
+            UserAccount userAccount = userAccountRepository.findByAccountTypeAndAccountValue(accountType, accountValue)
+                    .orElseThrow(() -> new BusinessException("账号不存在"));
+            user = userAccount.getUser();
+        }
+
+        // 检查用户状态
         if (user.getStatus() != 1) {
             throw new BusinessException("账号已被禁用");
         }
 
-        // 3. 生成新 Token
+        // 生成新 Token
         return buildLoginResponse(user);
     }
 

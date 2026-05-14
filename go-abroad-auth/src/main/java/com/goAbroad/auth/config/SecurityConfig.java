@@ -76,7 +76,7 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/refresh",
                     "/api/auth/sendCode",
-                    "/api/auth/social/",
+                    "/api/auth/social/**", "api/auth/logout",
                     "/api/search",
                     "/error"
                 ).permitAll()

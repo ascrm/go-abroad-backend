@@ -95,7 +95,11 @@ public class AuthController {
      */
     @PostMapping("/switch-account")
     public R<LoginResponse> switchAccount(@RequestBody SwitchAccountRequest request) {
-        LoginResponse response = authService.switchAccount(request.getAccountType(), request.getAccountValue());
+        LoginResponse response = authService.switchAccount(
+                request.getAccountType(),
+                request.getAccountValue(),
+                request.getUserId()
+        );
         return R.ok(response);
     }
 

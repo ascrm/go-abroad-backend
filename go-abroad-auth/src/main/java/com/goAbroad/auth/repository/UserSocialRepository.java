@@ -22,4 +22,9 @@ public interface UserSocialRepository extends JpaRepository<UserSocial, Long> {
      * 根据用户ID查询第三方登录列表
      */
     List<UserSocial> findByUserId(Long userId);
+
+    /**
+     * 根据用户ID和平台类型查询第三方登录
+     */
+    Optional<UserSocial> findByUserIdAndSocialType(Long userId, Integer socialType);
 }

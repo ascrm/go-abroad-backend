@@ -2,6 +2,7 @@ package com.goAbroad.core.service;
 
 import io.minio.*;
 import io.minio.http.Method;
+import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -72,6 +75,40 @@ public class MinioService {
         } catch (Exception e) {
             log.error("文件上传失败", e);
             throw new RuntimeException("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 列出指定前缀的所有文件对象
+     */
+    public List<String> listObjects(String prefix) {
+        try {
+            List<String> urls = new ArrayList<>();
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .recursive(true)
+                            .build()
+            );
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                // 获取预签名URL
+                String url = minioClient.getPresignedObjectUrl(
+                        GetPresignedObjectUrlArgs.builder()
+                                .method(Method.GET)
+                                .bucket(bucket)
+                                .object(objectName)
+                                .expiry((int) presignedExpirySeconds, TimeUnit.SECONDS)
+                                .build()
+                );
+                urls.add(url);
+            }
+            log.info("列出对象成功: prefix={}, count={}", prefix, urls.size());
+            return urls;
+        } catch (Exception e) {
+            log.error("列出对象失败", e);
+            throw new RuntimeException("列出对象失败: " + e.getMessage());
         }
     }
 

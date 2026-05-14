@@ -254,14 +254,24 @@ public class AiUtils {
         sb.append("- 推荐知名可靠的第三方平台（Booking、携程等）\n");
         sb.append("- 根据目的地国家推荐本地化资源\n");
         sb.append("- 根据出行目的（旅游/留学/工作/移民）推荐不同类别的资源\n");
-        sb.append("- 总数控制在 8-15 条，确保覆盖用户核心需求\n\n");
+        sb.append("- 总数控制在 8-15 条，确保覆盖用户核心需求\n");
+        sb.append("- 禁止推荐以下平台：谷歌地图、谷歌翻译、Uber、Wise、Booking.com、亚马逊购物\n\n");
+
+        sb.append("【coverImage 图片要求】\n");
+        sb.append("图片必须满足以下所有条件：\n");
+        sb.append("1. 必须是可公开访问的图片直链，格式为 .jpg/.png/.webp 结尾\n");
+        sb.append("2. 不要返回网页链接（如 unsplash 页面地址、Pixabay 详情页）\n");
+        sb.append("3. 优先使用以下图床获取图片：\n");
+        sb.append("   - https://images.unsplash.com/photo-XXX?w=200&h=200&fit=crop（需替换真实 photo ID）\n");
+        sb.append("   - https://cdn.pixabay.com/photo-XXX.jpg（需替换真实 photo ID）\n");
+        sb.append("4. 如果无法确保图片可访问，请返回空字符串 \"\"\n\n");
 
         sb.append("请直接返回 JSON 数组，不要有其他解释性文字。\n\n");
 
         sb.append("【示例输出】\n");
         sb.append("[\n");
-        sb.append("  {\"title\": \"日本驻华大使馆签证申请\", \"description\": \"日本签证申请官方入口\", \"coverImage\": \"https://www.cn.emb-japan.go.jp/images/header_logo.png\", \"url\": \"https://www.cn.emb-japan.go.jp/itprtop_zh/index.html\", \"webUrl\": \"\", \"category\": \"签证\", \"cta\": \"访问官网\"},\n");
-        sb.append("  {\"title\": \"Booking.com\", \"description\": \"全球酒店预订平台\", \"coverImage\": \"https://cf.bstatic.com/static/img/favicon/2009515cd1de57e5e83379b21f7684c27d7ed0dd/favicon.ico\", \"url\": \"https://www.booking.com\", \"webUrl\": \"\", \"category\": \"住宿\", \"cta\": \"立即预订\"}\n");
+        sb.append("  {\"title\": \"日本驻华大使馆签证申请\", \"description\": \"日本签证申请官方入口\", \"coverImage\": \"https://cdn.pixabay.com/photo/2015/10/12/15/18/buildings-984265_640.jpg\", \"url\": \"https://www.cn.emb-japan.go.jp/itprtop_zh/index.html\", \"webUrl\": \"\", \"category\": \"签证\", \"cta\": \"访问官网\"},\n");
+        sb.append("  {\"title\": \"Booking.com\", \"description\": \"全球酒店预订平台\", \"coverImage\": \"https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&h=200&fit=crop\", \"url\": \"https://www.booking.com\", \"webUrl\": \"\", \"category\": \"住宿\", \"cta\": \"立即预订\"}\n");
         sb.append("]\n\n");
 
         sb.append("请根据用户提供的信息生成推荐资源列表。");

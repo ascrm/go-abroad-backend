@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/file")
 @RequiredArgsConstructor
@@ -30,5 +32,14 @@ public class FileController {
                              @RequestParam(required = false, defaultValue = "other") String folder) {
         String url = minioService.upload(file, folder);
         return R.ok(url);
+    }
+
+    /**
+     * 列出 Minio 桶中指定前缀的所有文件 URL
+     */
+    @GetMapping("/list")
+    public R<List<String>> listFiles(@RequestParam(required = false, defaultValue = "resource") String prefix) {
+        List<String> urls = minioService.listObjects(prefix);
+        return R.ok(urls);
     }
 }
